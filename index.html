@@ -1,0 +1,2200 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TAO Reborn · v4.2 beta</title>
+<style>
+  :root {
+    --bg: #14171c; --painel: #1d222a; --linha: #2d343f; --texto: #e6e9ee; --suave: #9aa4b2;
+    --p1: #4da3ff; --p2: #ff9a3c; --hex: #262d38; --hexb: #3a4452; --obs: #0c0e12;
+    --ok: #5fd38d; --atq: #ff5d5d; --hab: #c58bff; --cura: #5fd3c8; --aviso: #ffd24d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--texto);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 10px 16px;
+    border-bottom: 1px solid var(--linha); }
+  header h1 { font-size: 17px; margin: 0 8px 0 0; letter-spacing: .02em; }
+  header .grupo { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  select, button { font: inherit; color: var(--texto); background: var(--painel); border: 1px solid var(--linha);
+    border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+  button:hover, select:hover { border-color: var(--suave); }
+  button:focus-visible, select:focus-visible { outline: 2px solid var(--p1); outline-offset: 2px; }
+  button.principal { background: #2a5a96; border-color: #3a74bd; }
+  button:disabled { opacity: .45; cursor: default; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; padding: 16px; max-width: 1100px; margin: 0 auto; }
+  @media (max-width: 820px) { main { grid-template-columns: 1fr; padding: 12px 16px; } }
+  #tabuleiro { width: 100%; height: auto; max-height: 78vh; background: #10131a; border: 1px solid var(--linha); border-radius: 10px; }
+  #tabWrap { position: relative; min-width: 0; align-self: start; }
+  #barra { position: absolute; z-index: 3; display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; max-width: min(300px, 94%); padding: 6px; background: rgba(29, 34, 42, .96);
+    border: 1px solid #3a4452; border-radius: 12px; box-shadow: 0 4px 18px rgba(0, 0, 0, .55); }
+  #barra[hidden] { display: none; }
+  #barra button { min-height: 42px; padding: 6px 11px; font-size: 14px; white-space: nowrap; }
+  #barra button.ativo { background: #2a5a96; border-color: #3a74bd; }
+  #barra button.alerta { background: #8a2f2f; border-color: #c75a5a; }
+  .lateral { display: flex; flex-direction: column; gap: 12px; }
+  .caixa { background: var(--painel); border: 1px solid var(--linha); border-radius: 10px; padding: 12px 14px; }
+  .caixa h2 { font-size: 12px; margin: 0 0 6px; text-transform: uppercase; letter-spacing: .08em; color: var(--suave); font-weight: 600; }
+  #vez { font-size: 17px; font-weight: 600; }
+  .p1 { color: var(--p1); } .p2 { color: var(--p2); }
+  #contracao { margin-top: 6px; color: var(--suave); }
+  #contracao.alerta { color: var(--aviso); font-weight: 600; }
+  .modos { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+  .modos button.ativo { background: #2a5a96; border-color: #3a74bd; }
+  .desc { color: var(--suave); font-size: 13.5px; }
+  .desc b { color: var(--texto); font-weight: 600; }
+  #log { list-style: none; margin: 0; padding: 0; font-size: 13.5px; color: var(--suave); }
+  #log li { padding: 2px 0; border-top: 1px solid var(--linha); }
+  #log li:first-child { border-top: 0; color: var(--texto); }
+  .legenda { font-size: 12.5px; color: var(--suave); display: flex; gap: 14px; flex-wrap: wrap; }
+  /* Tabuleiro */
+  .hex { fill: var(--hex); stroke: var(--hexb); stroke-width: 1; }
+  .hex.obs { fill: #3b424d; stroke: #66717f; stroke-width: 1.5; }
+  .obs-in { fill: #4a5361; stroke: #2a2f38; stroke-width: 1; pointer-events: none; }
+  .hex.caida { fill: #0a0c10; stroke: #141820; stroke-dasharray: 2 4; opacity: .55; }
+  .hex.dest { fill: #1f3d2c; stroke: var(--ok); stroke-width: 2; cursor: pointer; }
+  .hex.pode { cursor: pointer; }
+  .alcmov { fill: rgba(122, 162, 255, .10); stroke: #7aa2ff; stroke-width: 1.5; stroke-dasharray: 2 3; opacity: .8; pointer-events: none; }
+  .ameaca { fill: rgba(255, 93, 93, .05); stroke: none; pointer-events: none; }
+  .alcance { fill: rgba(255, 93, 93, .08); stroke: var(--atq); stroke-width: 1.5; stroke-dasharray: 3 3; opacity: .75; pointer-events: none; }
+  .flash { fill: rgba(255, 70, 70, .45); stroke: var(--atq); stroke-width: 4; pointer-events: none; animation: flash .45s ease-in-out 2 both; }
+  .flash.cura { fill: rgba(95, 211, 200, .4); stroke: var(--cura); }
+  .flash.preso { fill: rgba(197, 139, 255, .4); stroke: var(--hab); }
+  .num { font: 700 17px system-ui, sans-serif; text-anchor: middle; paint-order: stroke; stroke: #0b0e13; stroke-width: 4px; pointer-events: none; }
+  .num.dano { fill: #ff6b6b; } .num.cura { fill: #5fd3c8; } .num.preso { fill: #c58bff; font-size: 13px; }
+  @keyframes flash { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .flash { animation: none; opacity: 1; } }
+  .aviso { fill: none; stroke: var(--aviso); stroke-width: 2; stroke-dasharray: 5 4; pointer-events: none; }
+  .aviso.urgente { animation: pulsa 1s ease-in-out infinite; stroke-width: 3; }
+  @keyframes pulsa { 50% { opacity: .25; } }
+  @media (prefers-reduced-motion: reduce) { .aviso.urgente { animation: none; } }
+  .marca { fill: none; stroke-width: 3; pointer-events: none; }
+  .marca.atq { stroke: var(--atq); } .marca.hab { stroke: var(--hab); } .marca.cura { stroke: var(--cura); }
+  .mira { fill: var(--atq); opacity: .9; pointer-events: none; }
+  .marca.mov { stroke-dasharray: 5 4; }
+  .marca.sel { stroke: #fff; stroke-width: 3; }
+  .marca.ultimo { stroke: #6b7686; stroke-width: 2; stroke-dasharray: 2 3; }
+  .un { cursor: default; }
+  .un.minha { cursor: pointer; }
+  .ico { fill: none; stroke: #0b0d11; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+  .ico .cheio { fill: #0b0d11; }
+  .ico .olho { fill: #fff; stroke: none; }
+  .ico .crina { stroke: #fff; stroke-width: 1.1; fill: none; }
+  .un text { font-weight: 700; font-size: 13px; text-anchor: middle; dominant-baseline: central; pointer-events: none; fill: #0b0d11; }
+  .mp { fill: var(--cura); stroke: #0b0d11; stroke-width: .8; } .mp.vazio { fill: #3a4452; }
+  .zona { fill: rgba(95, 211, 200, .12); stroke: var(--cura); stroke-width: 1.5; pointer-events: none; }
+  .pip { fill: #e6e9ee; } .pip.vazio { fill: #3a4452; }
+  /* Janelas */
+  .veu { position: fixed; inset: 0; background: rgba(5, 7, 10, .7); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 5; }
+  .veu.aberto { display: flex; }
+  .janela { background: var(--painel); border: 1px solid var(--linha); border-radius: 12px; padding: 18px 20px; max-width: 520px; width: 100%; max-height: 90vh; overflow: auto; }
+  .janela h2 { margin: 0 0 8px; font-size: 18px; }
+  .dica { margin-top: 8px; padding: 8px 10px; border-left: 3px solid var(--p1); background: #18202b; font-size: 13.5px; color: #c9d0da; border-radius: 0 6px 6px 0; }
+  .dica[hidden] { display: none; }
+  .dica button { margin-top: 6px; padding: 2px 8px; font-size: 12px; color: var(--suave); }
+  .amostra { display: inline-block; width: 14px; height: 14px; vertical-align: -2px; border-radius: 3px; margin-right: 4px; }
+  .amostra.verde { background: #1f3d2c; border: 2px solid var(--ok); }
+  .amostra.verm { background: rgba(255,93,93,.15); border: 2px dashed var(--atq); }
+  .amostra.amar { border: 2px dashed var(--aviso); }
+  .passos { display: flex; gap: 5px; justify-content: center; margin: 4px 0 10px; }
+  .passos i { width: 8px; height: 8px; border-radius: 50%; background: var(--linha); display: block; }
+  .passos i.on { background: var(--p1); }
+  .grade { display: grid; grid-template-columns: 1fr; gap: 8px; margin: 8px 0; }
+  .ficha { display: grid; grid-template-columns: 38px 1fr; gap: 10px; padding: 8px 10px; border: 1px solid var(--linha); border-radius: 8px; background: #181d25; }
+  .ficha svg { width: 38px; height: 38px; background: #7aa2ff; border-radius: 50%; padding: 5px; }
+  .ficha h3 { margin: 0 0 2px; font-size: 14.5px; }
+  .ficha .nums { font-size: 12.5px; color: var(--suave); margin-bottom: 2px; }
+  .ficha .nums b { color: var(--texto); }
+  .ficha p { margin: 0; font-size: 13px; color: #c9d0da; }
+  .nota { display: flex; gap: 5px; margin: 4px 0 10px; flex-wrap: wrap; align-items: center; }
+  .nota span.rot { min-width: 108px; font-size: 13.5px; color: var(--suave); }
+  .nota button { padding: 4px 10px; min-width: 36px; }
+  .nota button.ativo { background: #2a5a96; border-color: #3a74bd; }
+  input.texto { width: 100%; background: #10131a; color: var(--texto); border: 1px solid var(--linha); border-radius: 6px; padding: 8px; font: inherit; }
+  .janela p, .janela li { color: #c9d0da; }
+  .janela ul { padding-left: 18px; margin: 6px 0 10px; }
+  .janela .acoes { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; flex-wrap: wrap; }
+  textarea { width: 100%; height: 150px; background: #10131a; color: var(--texto); border: 1px solid var(--linha); border-radius: 6px; font: 12px/1.4 ui-monospace, monospace; padding: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>TAO Reborn <span style="color:var(--suave);font-weight:400">v4.2 · beta</span></h1>
+  <div class="grupo">
+    <label for="selModo" class="desc">Modo</label>
+    <select id="selModo">
+      <option value="ia1">Contra a IA (fácil)</option>
+      <option value="ia2">Contra a IA (difícil)</option>
+      <option value="2j">Dois jogadores, mesma tela</option>
+    </select>
+    <label for="selLado" class="desc" id="rotLado">Você joga com</label>
+    <select id="selLado">
+      <option value="0">Azul (começa)</option>
+      <option value="1">Laranja (responde)</option>
+    </select>
+    <label for="selRitmo" class="desc" id="rotRitmo">Ritmo</label>
+    <select id="selRitmo">
+      <option value="1">Lento</option>
+      <option value="0.5">Normal</option>
+    </select>
+  </div>
+  <div class="grupo">
+    <button id="btNova" class="principal">Nova partida</button>
+    <button id="btDesfazerJogada" disabled>Desfazer jogada</button>
+    <button id="btGuia">Guia</button>
+    <button id="btRegras">Regras</button>
+    <button id="btUnidades">Unidades</button>
+    <button id="btRelatorio">Relatório</button>
+  </div>
+</header>
+
+<main>
+  <div id="tabWrap"><svg id="tabuleiro" viewBox="-290 -262 580 524" role="img" aria-label="Tabuleiro hexagonal"></svg><div id="barra" hidden></div></div>
+  <div class="lateral">
+    <div class="caixa">
+      <h2>Turno</h2>
+      <div id="vez"></div>
+      <div id="contracao"></div>
+      <div class="dica" id="dica" hidden></div>
+    </div>
+    <div class="caixa" id="painelUnidade"></div>
+    <div class="caixa">
+      <h2>Últimas jogadas</h2>
+      <ul id="log"></ul>
+    </div>
+    <div class="legenda">
+      <span><b class="p1">●</b> Azul: círculos</span>
+      <span><b class="p2">■</b> Laranja: quadrados</span>
+      <span id="placar"></span>
+    </div>
+  </div>
+</main>
+
+<div class="veu" id="veuFim" role="dialog" aria-modal="true" aria-labelledby="fimTitulo">
+  <div class="janela">
+    <h2 id="fimTitulo"></h2>
+    <p id="fimTexto"></p>
+    <div id="avalFim">
+      <p class="desc" style="margin:10px 0 4px"><b>Como foi esta partida?</b> (opcional)</p>
+      <div class="nota"><span class="rot">Diversão</span><span id="notaDiv"></span></div>
+      <div class="nota"><span class="rot">Regras claras</span><span id="notaCla"></span></div>
+    </div>
+    <div class="acoes">
+      <button id="btFechar">Ver o tabuleiro</button>
+      <button id="btRevanche" class="principal">Revanche</button>
+    </div>
+  </div>
+</div>
+
+<textarea id="expTexto" hidden></textarea>
+<div class="veu" id="veuBemVindo" role="dialog" aria-modal="true" aria-labelledby="bvTitulo">
+  <div class="janela">
+    <h2 id="bvTitulo">TAO Reborn</h2>
+    <p>Jogo tático de <b>1 contra 1, por turnos</b>, sem sorte: o dano é fixo e toda a informação está na tela. Você comanda 7 unidades diferentes num tabuleiro hexagonal e vence deixando o adversário sem unidades que se movem.</p>
+    <p>Cada turno você escolhe <b>uma</b> unidade: ela anda e depois age (ataca ou usa uma habilidade). Uma partida dura de 5 a 10 minutos.</p>
+    <p class="desc">Esta é uma versão de teste. Sua opinião ajuda a decidir o que o jogo vira: ao final de cada partida você pode dar uma nota, e o botão <b>Relatório</b> gera um resumo para me enviar.</p>
+    <div class="acoes">
+      <button id="btBvGuia">Ver o guia (1 min)</button>
+      <button id="btBvJogar" class="principal">Jogar contra a IA fácil</button>
+    </div>
+  </div>
+</div>
+
+<div class="veu" id="veuGuia" role="dialog" aria-modal="true" aria-labelledby="guiaTitulo">
+  <div class="janela">
+    <h2 id="guiaTitulo"></h2>
+    <div class="passos" id="guiaPassos"></div>
+    <div id="guiaCorpo"></div>
+    <div class="acoes">
+      <button id="btGuiaAnt">Anterior</button>
+      <button id="btGuiaProx" class="principal">Próximo</button>
+    </div>
+  </div>
+</div>
+
+<div class="veu" id="veuUnidades" role="dialog" aria-modal="true" aria-labelledby="unTitulo">
+  <div class="janela">
+    <h2 id="unTitulo">As 7 unidades</h2>
+    <p class="desc">PV = pontos de vida. Mov. = casas que anda por turno. Os valores de dano valem para atacar parado; ao andar antes de atacar o dano cai 1 (mínimo 1).</p>
+    <div class="grade" id="gradeUnidades"></div>
+    <div class="acoes"><button id="btUnOk" class="principal">Fechar</button></div>
+  </div>
+</div>
+
+<div class="veu" id="veuRelatorio" role="dialog" aria-modal="true" aria-labelledby="relTitulo">
+  <div class="janela">
+    <h2 id="relTitulo">Relatório para o Marcelo</h2>
+    <p class="desc">Gera um resumo das suas partidas neste aparelho. Escreva um comentário (o que foi bom, confuso ou chato), toque em <b>Copiar relatório</b> e cole numa mensagem para quem te enviou o jogo. Nada é enviado automaticamente.</p>
+    <input class="texto" id="relComentario" maxlength="400" placeholder="Comentário livre (opcional)">
+    <textarea id="relTexto" readonly style="margin-top:8px"></textarea>
+    <div class="acoes">
+      <button id="btRelCopiar" class="principal">Copiar relatório</button>
+      <button id="btRelFechar">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div class="veu" id="veuRegras" role="dialog" aria-modal="true" aria-labelledby="regrasTitulo">
+  <div class="janela">
+    <h2 id="regrasTitulo">Regras</h2>
+    <ul>
+      <li><b>Objetivo:</b> deixe o adversário sem unidades que se movem, ou sem nenhuma ação possível no início do turno dele.</li>
+      <li><b>Seu turno:</b> escolha <b>uma</b> unidade. Ela pode andar e depois atacar ou usar a habilidade, só andar, ou só agir. Nunca se anda depois de atacar: o ataque encerra o turno.</li>
+      <li><b>Dano ao andar e atacar:</b> 1 a menos que o normal (mínimo 1). Atacar parado causa dano normal. Exceções: o <b>Lanceiro</b> causa 1 a mais (lança em corrida) e o <b>Mineiro</b> mantém o dano cheio se o movimento atravessou um obstáculo. Investida e habilidades não mudam.</li>
+      <li><b>Sem sorte:</b> o dano é fixo e toda a informação está na tela.</li>
+      <li><b>Contração:</b> se ninguém causa dano por um tempo, as casas da borda caem (aparecem tracejadas em amarelo antes). A primeira contração só acontece após <b>16 meios-turnos sem dano</b> (8 turnos de cada um), o que dá tempo para posicionar o ataque; as seguintes, após 8. Unidades sobre casas que caem são deslocadas sem dano. Qualquer dano reinicia a contagem.</li>
+      <li><b>Prender:</b> o alvo não pode se mover até o fim do próximo turno do dono dele. Ao ficar livre, a unidade fica <b>imune a novo Prender</b> até o fim do turno seguinte dela: ninguém trava a mesma unidade em turnos seguidos. Se todas as suas unidades estiverem presas, você passa a vez.</li>
+      <li><b>Remendador:</b> cada cura custa a mana cheia (4). Ele começa cheio e ganha 1 por turno seu. Escolha na hora: 3 PV em um aliado adjacente, ou 1 PV em área (ele e os aliados a até 2 casas).</li>
+      <li><b>Empate:</b> a mesma posição três vezes, ou 30 meios-turnos sem dano com o tabuleiro já no menor tamanho.</li>
+    </ul>
+    <p class="desc">Veja também o <b>Guia</b> (como jogar passo a passo) e <b>Unidades</b> (ficha de cada peça).</p>
+    <div class="acoes"><button id="btRegrasOk" class="principal">Entendi</button></div>
+  </div>
+</div>
+
+<script>
+/* =============================================================================
+ * motor.js  -  Motor de regras determinístico (especificação: 03-motor.md v1.0)
+ *
+ * Regras de ouro:
+ *  - Funções puras sobre estado JSON. Nada de relógio, sorteio ou I/O aqui.
+ *  - Mapa e catálogo são constantes referenciadas por id/versão, fora do estado.
+ *  - Ordem canônica em tudo (unidades por id, ações por ordem fixa).
+ *
+ * Funciona em Node (module.exports) e no navegador (global Motor). Para o
+ * protótipo single-file, este arquivo é colado inteiro dentro de um <script>.
+ * ========================================================================== */
+(function (raiz, fabrica) {
+  if (typeof module === 'object' && module.exports) module.exports = fabrica();
+  else raiz.Motor = fabrica();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  /* ------------------------------------------------------------------------
+   * 1. GEOMETRIA (coordenadas axiais q,r)
+   * --------------------------------------------------------------------- */
+  const VERSAO_ESTADO = 3;           // v3: campos 'anel' e 'caidas' (contração do tabuleiro, D-18)
+  const LIMITE_SEM_PROGRESSO = 30;   // D-05: meios-turnos sem dano nem morte
+  const REPETICOES_EMPATE = 3;       // D-05: 3ª ocorrência da posição
+
+  // Ordem fixa, índice 0 a 5 (03-motor.md seção 2).
+  const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
+
+  const chave = (q, r) => q + ',' + r;
+
+  function dist(q1, r1, q2, r2) {
+    const dq = q1 - q2, dr = r1 - r2;
+    return (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
+  }
+
+  function dentro(mapa, q, r) {
+    return Math.abs(q) <= mapa.raio && Math.abs(r) <= mapa.raio && Math.abs(q + r) <= mapa.raio;
+  }
+
+  // Anel da casa = distância ao centro (0 = centro, 4 = borda do hex4-base).
+  function anelDe(q, r) { return dist(q, r, 0, 0); }
+
+  /* ------------------------------------------------------------------------
+   * 2. MAPAS
+   * --------------------------------------------------------------------- */
+  // 'inicio' = slots do jogador 0 por código de unidade; o jogador 1 é o
+  // espelho por rotação de 180° (-q,-r).
+  function criarMapa(id, raio, obstaculos, inicio) {
+    return {
+      id: id, raio: raio, obstaculos: obstaculos,
+      obs: new Set(obstaculos.map(function (o) { return chave(o[0], o[1]); })),
+      inicio: inicio || {}
+    };
+  }
+
+  const MAPAS = {};
+  function registrarMapa(mapa) { MAPAS[mapa.id] = mapa; return mapa; }
+
+  // D-12
+  registrarMapa(criarMapa('hex4-base', 4,
+    [[2, -2], [-2, 2], [-1, -1], [1, 1], [3, -1], [-3, 1], [2, 0], [-2, 0]],
+    // Re e At: slots auxiliares provisórios, usados só em composições alternativas
+    // (simulação de D-07). O Exército Base não os usa.
+    { La: [0, -3], Se: [1, -3], Ba: [2, -3], Be: [1, -4], En: [2, -4], Re: [0, -4], At: [3, -3] }));
+
+  // D-33: mapa de raio 5 (91 casas) para a variante v4, 7 peças por lado. Obstáculos e posições
+  // iniciais provisórios (desenhados rápido; simétricos por rotação de 180°), a ajustar nos testes.
+  registrarMapa(criarMapa('hex5', 5,
+    [[2, -2], [-2, 2], [-1, -1], [1, 1], [3, -1], [-3, 1], [2, 0], [-2, 0], [4, -2], [-4, 2], [-3, -1], [3, 1]],
+    // D-37: primeira fileira invertida em relação ao v4.1. Da esquerda para a direita, na visão de quem joga
+    // embaixo: Lanceiro, Tanque, Batedor, Mineiro. Fileira de trás inalterada. Atalaia (fora do exército) em slot livre.
+    { La: [3, -3], Se: [2, -3], Ba: [1, -3], Mi: [0, -3], At: [-1, -3], Be: [1, -4], En: [2, -4], Re: [3, -4] }));
+  const EXERCITO_V4 = ['Se', 'Be', 'Ba', 'La', 'En', 'Re', 'Mi'];   // D-34: Mineiro no lugar da Atalaia
+
+  // Mapa efetivo = mapa base com o raio reduzido pelas contrações (D-18).
+  // Casas do anel que caiu viram "fora do mapa" (borda). Cache por id#anel.
+  const _efetivos = {};
+  // Fase 2 (casa a casa): 'caidas' lista casas que caíram; para o motor são
+  // equivalentes a obstáculos (bloqueiam passo, linha de tiro e contam como borda).
+  function mapaEfetivo(estado) {
+    const base = MAPAS[estado.mapa];
+    const caidas = estado.caidas || [];
+    if (!estado.anel && !caidas.length) return base;
+    const k = base.id + '#' + (estado.anel || 0) + '#' + caidas.join(';');
+    let m = _efetivos[k];
+    if (!m || m._base !== base) {
+      const raio = base.raio - (estado.anel || 0);
+      const obst = base.obstaculos.filter(function (o) { return anelDe(o[0], o[1]) <= raio; }).concat(caidas);
+      m = criarMapa(base.id, raio, obst, base.inicio);
+      m._base = base;
+      _efetivos[k] = m;
+    }
+    return m;
+  }
+
+  /* ------------------------------------------------------------------------
+   * 3. CATÁLOGO c0.3 (números = placeholders; mudar só com registro em
+   *    02-decisoes.md e incremento de versão)
+   *    forma: 'adj' | 'linha' | 'arco'  (adj = distância 1)
+   *    hab (ativa):     'repelir' | 'prender' | 'remendar' | 'investida'
+   *    passiva:         'perfurar' | 'encurralar' | 'ancora'
+   * --------------------------------------------------------------------- */
+  const CATALOGO = {
+    versao: 'c0.4',
+    escalaPV: 1,   // ver definirEscalaPV
+    // Repelir do Tanque (D-25): dano do próprio Repelir. 'livre' = empurrou; 'bloqueado' = a
+    // casa de destino estava ocupada/obstáculo/borda (não move; o segundo ponto vem do bloqueio).
+    // Não sofre o ajuste de dano de mover e agir. Regra anterior (c0.3): { livre: 0, bloqueado: 1 }.
+    repelir: { livre: 1, bloqueado: 2 },
+    // Teste (D-31): true = todo ataque básico ganha +1 se um aliado do atacante estiver adjacente ao alvo (flanco geral).
+    flancoGeral: false,
+    // D-39: true = a unidade que acaba de ficar livre do Prender (fim do turno do dono) não pode ser presa de novo até o fim do próximo turno dele.
+    imunidadePrender: false,
+    // Teste (D-32): mana do Remendador. null = desligado (regras oficiais). Objeto:
+    // { max: 4, regen: 1, modo: 'alvo'|'area'|'ambos', cura: 1, curaArea: 1, raio: 2 }. Remendar custa a mana cheia (max);
+    // a mana começa cheia e regenera 'regen' no fim de cada turno do dono. 'alvo': cura 'cura' PV de
+    // um aliado adjacente (nunca de si). 'area': cura 'cura' PV de todo aliado (inclusive o próprio
+    // Remendador) a até 'raio' casas; a ação usa alvo = id do próprio Remendador.
+    mana: null,
+    // Contração do tabuleiro (D-18). N = meios-turnos sem dano para o anel cair
+    // (0 desliga). Só contrai se sobrarem casas livres >= pisoFator x unidades
+    // vivas e o raio resultante for >= raioMin.
+    contracao: { N: 8, pisoFator: 1.5, raioMin: 1,
+      // Fase 2 (D-18, em teste): quando o anel não pode mais cair, cai um par de casas
+      // simétricas (as mais distantes do centro) a cada NCelula meios-turnos sem dano,
+      // até sobrar (unidades vivas + 1) casas livres. false = desligada.
+      celula: true, NCelula: 4 },
+    // D-18 (i), em teste: false = a 3ª repetição NÃO encerra a partida (só o contador sem progresso e a contração atuam).
+    repeticaoEmpate: true,
+    // Ideia 1 do Marcelo (em teste): atacar/usar habilidade depois de mover no mesmo turno. Ação composta = ação com campo 'para'.
+    // bonus: 'A' = +1 de dano se atacar sem mover; 'B' = -1 (mínimo 1) se atacar depois de mover; 'C' = sem ajuste.
+    moverEAgir: { ativo: false, bonus: 'C',
+      // Teste (D-26): ajuste de dano por tipo ao atacar depois de mover, no lugar do -1. Ex.: { La: 1 } (lança ganha com a corrida). Vazio = regra padrão.
+      ajusteAndar: {} },
+    unidades: {
+      Se: { nome: 'Tanque', sigla: 'Ta',  pvMax: 5, mov: 2, atq: { forma: 'adj',   min: 1, max: 1, dano: 2 }, hab: 'repelir',   passiva: null },
+      Be: { nome: 'Atirador', sigla: 'Ti',  pvMax: 2, mov: 2, atq: { forma: 'linha', min: 2, max: 4, dano: 2 }, hab: null,        passiva: 'perfurar' },
+      Ba: { nome: 'Batedor', sigla: 'Ba',  pvMax: 2, mov: 5, atq: { forma: 'adj',   min: 1, max: 1, dano: 1 }, hab: 'investida', passiva: null },
+      La: { nome: 'Lanceiro', sigla: 'La',  pvMax: 3, mov: 2, atq: { forma: 'linha', min: 2, max: 2, dano: 2 }, hab: null,        passiva: 'encurralar' },
+      En: { nome: 'Emboscador', sigla: 'Em',  pvMax: 2, mov: 2, atq: { forma: 'arco',  min: 1, max: 3, dano: 1 }, hab: 'prender',   passiva: null },
+      Re: { nome: 'Remendador', sigla: 'Re',  pvMax: 3, mov: 3, atq: { forma: 'adj',   min: 1, max: 1, dano: 1 }, hab: 'remendar',  passiva: null },
+      At: { nome: 'Atalaia', sigla: 'At',  pvMax: 4, mov: 0, atq: { forma: 'linha', min: 1, max: 3, dano: 1 }, hab: null,        passiva: 'ancora' },
+      // D-34 (só na variante v4.1): Mineiro. PV base 2,5 para dar 5 na escala dobrada. 'escava': além de andar
+      // 'mov' casas, vai até 'escava' casas em linha reta atravessando obstáculos fixos do mapa (não atravessa
+      // unidades nem casas caídas na contração) e pousa em casa livre.
+      Mi: { nome: 'Mineiro', sigla: 'Mi',  pvMax: 2.5, mov: 2, atq: { forma: 'adj',   min: 1, max: 1, dano: 2 }, hab: null,        passiva: null, escava: 3, escavaSemPenalidade: true }
+    }
+  };
+  const CAT = CATALOGO.unidades;
+
+  // Escala de PV (teste de jogabilidade): 1 = valores do catálogo. Os PV base ficam
+  // guardados; 'definirEscalaPV' recalcula pvMax de todos os tipos (arredonda para cima).
+  // Vale para as partidas criadas depois; um replay precisa registrar a escala.
+  const PV_BASE = {};
+  Object.keys(CAT).forEach(function (t) { PV_BASE[t] = CAT[t].pvMax; });
+  CAT.Mi.pvMax = Math.ceil(PV_BASE.Mi);   // PV base fracionário (2,5): na escala 1 vale 3, na escala dobrada 5
+  function definirEscalaPV(f) {
+    f = f || 1;
+    Object.keys(CAT).forEach(function (t) { CAT[t].pvMax = Math.ceil(PV_BASE[t] * f); });
+    CATALOGO.escalaPV = f;
+  }
+
+  // Regras oficiais do protótipo (D-27/D-28): andar e atacar, ataque -1 depois de andar
+  // (Lanceiro +1), PV x2. Fonte única para interface e simulador. 'regrasLegado' volta ao
+  // padrão anterior (andar ou agir, PV base), usado pelos testes de regressão.
+  // Dano base de cada unidade (para a variante v4 poder alterá-lo e as regras v3 restaurá-lo).
+  const DANO_BASE = {};
+  const ALC_BASE_BE = CAT.Be.atq.max;   // alcance máximo do Atirador nas regras oficiais (D-44 o amplia no v4.2)
+  Object.keys(CAT).forEach(function (t) { DANO_BASE[t] = CAT[t].atq.dano; });
+  function restaurarVariantes() {
+    Object.keys(DANO_BASE).forEach(function (t) { CAT[t].atq.dano = DANO_BASE[t]; });
+    CATALOGO.mana = null;
+    delete CATALOGO.contracao.acel;
+    delete CATALOGO.contracao.N1;
+    CATALOGO.imunidadePrender = false;
+    CAT.Be.atq.max = ALC_BASE_BE; delete CAT.Be.atq.sobreObst;
+  }
+  function regrasOficiais() {
+    const R = CATALOGO.moverEAgir; R.ativo = true; R.bonus = 'B'; R.ajusteAndar = { La: 1 };
+    restaurarVariantes();
+    definirEscalaPV(2);
+  }
+  // Variante v4 (D-33, D-34): regras oficiais + Batedor com dano 2 (Emboscador e Remendador ficam em 1;
+  // a Investida acompanha o dano do Batedor) + mana do Remendador com as duas curas (3 PV em um aliado
+  // adjacente, ou 1 PV em área, raio 2, inclusive ele; mesma mana, uma ou outra a cada 4 turnos).
+  function regrasV4() {
+    regrasOficiais();
+    CAT.Ba.atq.dano = 2;
+    CATALOGO.mana = { max: 4, regen: 1, modo: 'ambos', cura: 3, curaArea: 1, raio: 2 };
+    CATALOGO.imunidadePrender = true;   // D-39: quem acabou de ser preso não pode ser preso de novo até o fim do seu próximo turno
+    // D-44: Atirador com alcance 2 a 5; pode atirar por cima de obstáculo, mas o alcance máximo cai 2 casas naquela linha
+    CAT.Be.atq.max = ALC_BASE_BE + 1; CAT.Be.atq.sobreObst = 2;
+    CATALOGO.contracao.N1 = 16;   // D-37: o anel externo só cai após 16 meios-turnos sem dano; depois vale N (8)
+  }
+  function regrasLegado() {
+    const R = CATALOGO.moverEAgir; R.ativo = false; R.bonus = 'C'; R.ajusteAndar = {};
+    restaurarVariantes();
+    definirEscalaPV(1);
+  }
+
+  // Alcance da habilidade Prender (arco 1 a 3, sem dano). Interpretação 2.
+  const PRENDER = { min: 1, max: 3 };
+  const INVESTIDA_MAX_PASSOS = 3;
+
+  const EXERCITO_BASE = ['Se', 'Be', 'Ba', 'La', 'En'];   // D-06
+
+  /* ------------------------------------------------------------------------
+   * 4. ESTADO
+   * --------------------------------------------------------------------- */
+  function novaUnidade(tipo, dono, q, r) {
+    const u = { id: String(dono) + tipo, dono: dono, tipo: tipo, q: q, r: r, pv: CAT[tipo].pvMax, preso: false };
+    if (CATALOGO.mana && CAT[tipo].hab === 'remendar') u.mana = CATALOGO.mana.max;
+    return u;
+  }
+
+  function porId(a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; }
+
+  function chavePosicao(estado) {
+    // jogador | anel | id:q,r:pv:preso ; ...   (unidades já ordenadas por id)
+    return estado.jogador + '|' + (estado.anel || 0) + '/' + (estado.caidas || []).length + '|' + estado.unidades.map(function (u) {
+      return u.id + ':' + u.q + ',' + u.r + ':' + u.pv + ':' + (u.preso ? 1 : 0) + (u.imune ? ':i' : '') + (u.mana !== undefined ? ':m' + u.mana : '');
+    }).join(';');
+  }
+
+  function novoJogo(config) {
+    config = config || {};
+    const mapaId = config.mapa || 'hex4-base';
+    const mapa = MAPAS[mapaId];
+    if (!mapa) throw new Error('mapa desconhecido: ' + mapaId);
+    // config.exercito = o mesmo para os dois lados; config.exercitos = [P1, P2]
+    const base = config.exercito || EXERCITO_BASE;
+    const exercitos = config.exercitos || [base, base];
+    const unidades = [];
+    for (let dono = 0; dono < 2; dono++) {
+      const vistos = {};
+      exercitos[dono].forEach(function (tipo) {
+        if (!CAT[tipo]) throw new Error('tipo desconhecido: ' + tipo);
+        if (vistos[tipo]) throw new Error('máximo 1 de cada tipo (D-06): ' + tipo);
+        vistos[tipo] = true;
+        const slot = mapa.inicio[tipo];
+        if (!slot) throw new Error('sem slot inicial para ' + tipo + ' no mapa ' + mapaId);
+        unidades.push(novaUnidade(tipo, dono, dono === 0 ? slot[0] : -slot[0], dono === 0 ? slot[1] : -slot[1]));
+      });
+    }
+    unidades.sort(porId);
+    const estado = {
+      v: VERSAO_ESTADO, catalogo: CATALOGO.versao, mapa: mapaId,
+      jogador: 0, meioTurno: 0, semProgresso: 0, anel: 0, caidas: [],
+      unidades: unidades, repeticoes: {}, resultado: null
+    };
+    estado.repeticoes[chavePosicao(estado)] = 1;   // posição inicial = 1ª ocorrência
+    return estado;
+  }
+
+  function clonar(e) {
+    return {
+      v: e.v, catalogo: e.catalogo, mapa: e.mapa, jogador: e.jogador,
+      meioTurno: e.meioTurno, semProgresso: e.semProgresso, anel: e.anel,
+      caidas: (e.caidas || []).map(function (c) { return c.slice(); }),
+      unidades: e.unidades.map(function (u) { return Object.assign({}, u); }),
+      repeticoes: Object.assign({}, e.repeticoes),
+      resultado: e.resultado ? Object.assign({}, e.resultado) : null
+    };
+  }
+
+  function ocupar(estado) {
+    const occ = {};
+    estado.unidades.forEach(function (u) { occ[chave(u.q, u.r)] = u; });
+    return occ;
+  }
+
+  function achar(estado, id) {
+    for (let i = 0; i < estado.unidades.length; i++) if (estado.unidades[i].id === id) return estado.unidades[i];
+    return null;
+  }
+
+  /* ------------------------------------------------------------------------
+   * 5. CONSULTAS DE REGRA
+   * --------------------------------------------------------------------- */
+  // Âncora: unidade adjacente a uma Atalaia aliada dela não pode ser
+  // empurrada nem presa. Regra permanente, não status temporário.
+  function ancorado(estado, t) {
+    return estado.unidades.some(function (a) {
+      return a.dono === t.dono && CAT[a.tipo].passiva === 'ancora' && dist(a.q, a.r, t.q, t.r) === 1;
+    });
+  }
+
+  // Percorre as 6 linhas de um ataque em linha e chama f(q, r, k) nas casas alcançáveis (k = distância).
+  // Obstáculo/borda interrompem a linha, exceto se atq.sobreObst = N (D-41, tiro por cima): o obstáculo é
+  // atravessado e o alcance máximo cai N casas para o resto daquela linha. Unidades não bloqueiam.
+  function percorrerLinha(mapa, u, atq, f) {
+    for (let d = 0; d < 6; d++) {
+      let q = u.q, r = u.r, cruzou = false;
+      for (let k = 1; k <= atq.max; k++) {
+        q += DIRS[d][0]; r += DIRS[d][1];
+        if (!dentro(mapa, q, r)) break;
+        if (mapa.obs.has(chave(q, r))) {
+          if (!atq.sobreObst) break;
+          cruzou = true; continue;
+        }
+        if (cruzou && k > atq.max - atq.sobreObst) break;
+        f(q, r, k);
+      }
+    }
+  }
+
+  // Alvos inimigos de um ataque (forma, alcance). Linha: casas intermediárias
+  // não podem ser obstáculo; unidades não bloqueiam.
+  function alvosAtaque(estado, mapa, occ, u, atq) {
+    const out = [];
+    if (atq.forma === 'linha') {
+      percorrerLinha(mapa, u, atq, function (q, r, k) {
+        if (k >= atq.min) {
+          const o = occ[chave(q, r)];
+          if (o && o.dono !== u.dono) out.push(o);
+        }
+      });
+    } else {   // 'adj' e 'arco': só distância
+      estado.unidades.forEach(function (o) {
+        if (o.dono === u.dono) return;
+        const d = dist(u.q, u.r, o.q, o.r);
+        if (d >= atq.min && d <= atq.max) out.push(o);
+      });
+    }
+    return out.sort(porId);
+  }
+
+  // Encurralar: alvo tem vizinha que é obstáculo, borda ou outra unidade.
+  function encurralado(mapa, occ, t) {
+    for (let d = 0; d < 6; d++) {
+      const q = t.q + DIRS[d][0], r = t.r + DIRS[d][1];
+      if (!dentro(mapa, q, r) || mapa.obs.has(chave(q, r))) return true;
+      const o = occ[chave(q, r)];
+      if (o && o.id !== t.id) return true;
+    }
+    return false;
+  }
+
+  function casaLivre(mapa, occ, q, r) {
+    return dentro(mapa, q, r) && !mapa.obs.has(chave(q, r)) && !occ[chave(q, r)];
+  }
+
+  /* ------------------------------------------------------------------------
+   * 6. GERAÇÃO DE AÇÕES LEGAIS
+   * --------------------------------------------------------------------- */
+  // Destinos de movimento de uma unidade (sem considerar Preso): BFS de 'mov' passos por casas
+  // livres e, se o tipo tem 'escava' (Mineiro), também até 'escava' casas em linha reta atravessando
+  // obstáculos fixos do mapa. Unidades, casas caídas e a borda interrompem a escavação.
+  // Ordenados por (q, r). Fonte única para o gerador de ações e para a interface.
+  function destinosDe(estado, mapa, occ, u, cat) {
+    const destinos = [];
+    if (!(cat.mov > 0)) return destinos;
+    const visto = {}; visto[chave(u.q, u.r)] = true;
+    let fronteira = [[u.q, u.r]];
+    for (let passo = 1; passo <= cat.mov; passo++) {
+      const prox = [];
+      fronteira.forEach(function (c) {
+        for (let d = 0; d < 6; d++) {
+          const q = c[0] + DIRS[d][0], r = c[1] + DIRS[d][1], k = chave(q, r);
+          if (visto[k] || !casaLivre(mapa, occ, q, r)) continue;
+          visto[k] = true; prox.push([q, r]); destinos.push([q, r]);
+        }
+      });
+      fronteira = prox;
+    }
+    if (cat.escava) {
+      const fixos = MAPAS[estado.mapa].obs, caidas = {};
+      (estado.caidas || []).forEach(function (c) { caidas[chave(c[0], c[1])] = true; });
+      for (let d = 0; d < 6; d++) {
+        let q = u.q, r = u.r;
+        for (let k = 1; k <= cat.escava; k++) {
+          q += DIRS[d][0]; r += DIRS[d][1];
+          const ch = chave(q, r);
+          if (!dentro(mapa, q, r) || caidas[ch] || occ[ch]) break;   // borda, casa caída ou unidade: para
+          if (mapa.obs.has(ch)) { if (fixos.has(ch)) continue; break; }   // obstáculo fixo: atravessa
+          if (!visto[ch]) { visto[ch] = true; destinos.push([q, r]); }
+        }
+      }
+    }
+    destinos.sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });
+    return destinos;
+  }
+  // D-37: o movimento do Mineiro até 'para' atravessou obstáculo? (destino que não se alcança andando)
+  function chegouCavando(estado, id, para) {
+    const u = achar(estado, id), cat = CAT[u.tipo];
+    if (!cat.escavaSemPenalidade || !cat.escava) return false;
+    return !destinosDe(estado, mapaEfetivo(estado), ocupar(estado), u, Object.assign({}, cat, { escava: 0 }))
+      .some(function (p) { return p[0] === para[0] && p[1] === para[1]; });
+  }
+  function destinosMover(estado, id) {
+    const u = achar(estado, id);
+    return u ? destinosDe(estado, mapaEfetivo(estado), ocupar(estado), u, CAT[u.tipo]) : [];
+  }
+
+  // ignorarPreso=true: usado só para decidir imobilização e passe forçado
+  // (status temporários não contam, D-04).
+  // existeUma=true: para na primeira unidade que produzir alguma ação (só serve
+  // para perguntar "há ação?", sem ordem nem completude).
+  // Ataque básico e habilidades que não se movem (Repelir, Prender, Remendar) a
+  // partir da posição de 'u'. 'para' != null: ação composta (mover e depois agir);
+  // 'u' e 'occ' já refletem a nova posição.
+  function agir(estado, mapa, occ, u, cat, para, acoes) {
+    function empilhar(a) { if (para) a.para = para.slice(); acoes.push(a); }
+    alvosAtaque(estado, mapa, occ, u, cat.atq).forEach(function (t) {
+      empilhar({ u: u.id, a: 'atacar', alvo: t.id });
+    });
+    if (cat.hab === 'repelir') {
+      estado.unidades.forEach(function (t) {
+        if (t.dono !== u.dono && dist(u.q, u.r, t.q, t.r) === 1 && !ancorado(estado, t))
+          empilhar({ u: u.id, a: 'hab', alvo: t.id });
+      });
+    } else if (cat.hab === 'prender') {
+      estado.unidades.forEach(function (t) {
+        const d = dist(u.q, u.r, t.q, t.r);
+        if (t.dono !== u.dono && d >= PRENDER.min && d <= PRENDER.max && !ancorado(estado, t) && !(CATALOGO.imunidadePrender && t.imune))
+          empilhar({ u: u.id, a: 'hab', alvo: t.id });
+      });
+    } else if (cat.hab === 'remendar') {
+      const cm = CATALOGO.mana;
+      if (cm && u.mana < cm.max) return;   // sem mana cheia não cura
+      if (cm && (cm.modo === 'area' || cm.modo === 'ambos')) {
+        if (estado.unidades.some(function (t) { return t.dono === u.dono && dist(u.q, u.r, t.q, t.r) <= cm.raio && t.pv < CAT[t.tipo].pvMax; }))
+          empilhar({ u: u.id, a: 'hab', alvo: u.id });
+        if (cm.modo === 'area') return;
+      }
+      estado.unidades.forEach(function (t) {
+        if (t.dono === u.dono && t.id !== u.id && dist(u.q, u.r, t.q, t.r) === 1 && t.pv < CAT[t.tipo].pvMax)
+          empilhar({ u: u.id, a: 'hab', alvo: t.id });
+      });
+    }
+  }
+
+  function gerar(estado, ignorarPreso, existeUma) {
+    const mapa = mapaEfetivo(estado);
+    const occ = ocupar(estado);
+    const acoes = [];
+    const moverEAgir = CATALOGO.moverEAgir && CATALOGO.moverEAgir.ativo;
+
+    estado.unidades.forEach(function (u) {
+      if (u.dono !== estado.jogador) return;
+      if (existeUma && acoes.length) return;
+      const cat = CAT[u.tipo];
+      const imovelPorStatus = u.preso && !ignorarPreso;
+
+      // --- Mover: BFS até 'mov' passos por casas livres; mínimo 1 passo.
+      const destinos = (cat.mov > 0 && !imovelPorStatus) ? destinosDe(estado, mapa, occ, u, cat) : [];
+      if (destinos.length) {
+        destinos.forEach(function (p) { acoes.push({ u: u.id, a: 'mover', para: p }); });
+      }
+
+      // --- Atacar e habilidades sem deslocamento próprio, sem mover antes
+      agir(estado, mapa, occ, u, cat, null, acoes);
+
+      // --- Investida (já inclui o deslocamento; não combina com mover antes)
+      if (cat.hab === 'investida' && !imovelPorStatus) {
+        for (let d = 0; d < 6; d++) {
+          let q = u.q, r = u.r;
+          for (let passos = 1; passos <= INVESTIDA_MAX_PASSOS; passos++) {
+            q += DIRS[d][0]; r += DIRS[d][1];
+            if (!casaLivre(mapa, occ, q, r)) break;      // caminho bloqueado
+            estado.unidades.forEach(function (t) {       // alvo adjacente à casa final
+              if (t.dono !== u.dono && dist(q, r, t.q, t.r) === 1)
+                acoes.push({ u: u.id, a: 'hab', dir: d, passos: passos, alvo: t.id });
+            });
+          }
+        }
+      }
+
+      // --- Mover e depois agir (flag moverEAgir, ideia 1 do Marcelo, em teste)
+      if (moverEAgir) destinos.forEach(function (p) {
+        if (existeUma && acoes.length) return;
+        const u2 = Object.assign({}, u, { q: p[0], r: p[1] });
+        const occ2 = Object.assign({}, occ);
+        delete occ2[chave(u.q, u.r)]; occ2[chave(p[0], p[1])] = u2;
+        agir(estado, mapa, occ2, u2, cat, p, acoes);
+      });
+    });
+    return acoes;
+  }
+
+  function acoesLegais(estado) {
+    if (estado.resultado) return [];
+    const normais = gerar(estado, false);
+    if (normais.length) return normais;
+    // D-10: sem ação só por causa de Preso -> passe forçado.
+    if (gerar(estado, true, true).length) return [{ a: 'passe' }];
+    return [];   // imobilização (tratada em aplicar)
+  }
+
+  /* ------------------------------------------------------------------------
+   * 7. APLICAR AÇÃO
+   * --------------------------------------------------------------------- */
+  function canon(o) {   // stringify com chaves ordenadas, para comparar ações
+    if (Array.isArray(o)) return '[' + o.map(canon).join(',') + ']';
+    if (o && typeof o === 'object')
+      return '{' + Object.keys(o).sort().map(function (k) { return JSON.stringify(k) + ':' + canon(o[k]); }).join(',') + '}';
+    return JSON.stringify(o);
+  }
+
+  // Contração: o anel mais externo cai (o raio efetivo diminui 1). Unidades
+  // sobre o anel são deslocadas, sem dano, para a casa interna livre mais
+  // próxima (desempate: mais perto do centro, depois menor q, depois menor r).
+  // Devolve o evento, ou null (sem alterar 'e') se o piso ou o raio mínimo
+  // impedirem a contração.
+  function contrair(e) {
+    const cfg = CATALOGO.contracao;
+    const novoRaio = mapaEfetivo(e).raio - 1;
+    if (novoRaio < cfg.raioMin) return null;
+    const base = MAPAS[e.mapa];
+    const livres = [];
+    for (let q = -novoRaio; q <= novoRaio; q++) for (let r = -novoRaio; r <= novoRaio; r++) {
+      if (Math.abs(q + r) <= novoRaio && !base.obs.has(chave(q, r))) livres.push([q, r]);
+    }
+    if (livres.length < Math.ceil(cfg.pisoFator * e.unidades.length)) return null;
+
+    const ocup = {}, noAnel = [];
+    e.unidades.forEach(function (u) {
+      if (anelDe(u.q, u.r) > novoRaio) noAnel.push(u); else ocup[chave(u.q, u.r)] = true;
+    });
+    const desloc = deslocar(noAnel, livres, ocup);
+    if (!desloc) return null;
+    e.anel = (e.anel || 0) + 1;
+    return { t: 'contracao', anel: e.anel, raio: novoRaio, desloc: desloc };
+  }
+
+  // Desloca (sem dano) cada unidade de 'fora' para a casa livre mais próxima.
+  // Desempate: mais perto do centro, depois menor q, depois menor r. Destinos
+  // calculados antes de mover. Devolve a lista de deslocamentos ou null (sem mover).
+  function deslocar(fora, livres, ocup) {
+    const destinos = [];
+    for (let i = 0; i < fora.length; i++) {   // ordem de id
+      const u = fora[i];
+      let melhor = null, md = 0, mr = 0;
+      for (let j = 0; j < livres.length; j++) {
+        const c = livres[j];
+        if (ocup[chave(c[0], c[1])]) continue;
+        const d = dist(u.q, u.r, c[0], c[1]), rr = anelDe(c[0], c[1]);
+        const vence = !melhor || d < md || (d === md && (rr < mr ||
+          (rr === mr && (c[0] < melhor[0] || (c[0] === melhor[0] && c[1] < melhor[1])))));
+        if (vence) { melhor = c; md = d; mr = rr; }
+      }
+      if (!melhor) return null;
+      ocup[chave(melhor[0], melhor[1])] = true;
+      destinos.push(melhor);
+    }
+    return fora.map(function (u, i) {
+      const de = [u.q, u.r];
+      u.q = destinos[i][0]; u.r = destinos[i][1];
+      return { u: u.id, de: de, para: destinos[i].slice() };
+    });
+  }
+
+  // Fase 2: cai a casa livre mais distante do centro (desempate menor q, menor r)
+  // e a sua simétrica (-q,-r), se também livre. Piso: sobram >= unidades vivas + 1
+  // casas livres. Devolve o evento ou null (sem alterar 'e').
+  function contrairCelula(e) {
+    const mapa = mapaEfetivo(e), livres = [];
+    for (let q = -mapa.raio; q <= mapa.raio; q++) for (let r = -mapa.raio; r <= mapa.raio; r++)
+      if (Math.abs(q + r) <= mapa.raio && !mapa.obs.has(chave(q, r))) livres.push([q, r]);
+    let c = null;
+    livres.forEach(function (x) {
+      if (!c || anelDe(x[0], x[1]) > anelDe(c[0], c[1]) ||
+          (anelDe(x[0], x[1]) === anelDe(c[0], c[1]) && (x[0] < c[0] || (x[0] === c[0] && x[1] < c[1])))) c = x;
+    });
+    if (!c) return null;
+    const quedas = [c];
+    if ((c[0] !== 0 || c[1] !== 0) && !mapa.obs.has(chave(-c[0], -c[1]))) quedas.push([-c[0], -c[1]]);
+    if (livres.length - quedas.length < e.unidades.length + 1) return null;
+    const cai = {}; quedas.forEach(function (x) { cai[chave(x[0], x[1])] = true; });
+    const restam = livres.filter(function (x) { return !cai[chave(x[0], x[1])]; });
+    const ocup = {}, fora = [];
+    e.unidades.forEach(function (u) { if (cai[chave(u.q, u.r)]) fora.push(u); else ocup[chave(u.q, u.r)] = true; });
+    const desloc = deslocar(fora, restam, ocup);
+    if (!desloc) return null;
+    e.caidas = (e.caidas || []).concat(quedas);
+    return { t: 'contracao', modo: 'celula', anel: e.anel || 0, caidas: quedas, restam: restam.length, desloc: desloc };
+  }
+
+  // Casas que a unidade atinge com o ataque básico, independentemente de haver
+  // alvo (D-19: a interface mostra o alcance para o jogador entender a geometria).
+  // Linha: só as 6 direções, parando em obstáculo/borda. Adj e arco: por distância.
+  function alcanceAtaque(estado, id) {
+    const u = achar(estado, id);
+    if (!u) return [];
+    const mapa = mapaEfetivo(estado), atq = CAT[u.tipo].atq, out = [];
+    if (atq.forma === 'linha') {
+      percorrerLinha(mapa, u, atq, function (q, r, k) { if (k >= atq.min) out.push([q, r]); });
+    } else {
+      for (let q = -mapa.raio; q <= mapa.raio; q++) for (let r = -mapa.raio; r <= mapa.raio; r++) {
+        if (!dentro(mapa, q, r) || mapa.obs.has(chave(q, r))) continue;
+        const d = dist(u.q, u.r, q, r);
+        if (d >= atq.min && d <= atq.max) out.push([q, r]);
+      }
+    }
+    return out;
+  }
+
+  // Previsão para a interface (D-19): quando e quais casas caem na próxima
+  // contração. Pura: trabalha numa cópia. Devolve null se nada vai cair
+  // (regra desligada, piso atingido ou jogo encerrado).
+  // Gatilho da fase 1. Teste D-32: contracao.acel = { N1, N, t } (primeira contração com N1;
+  // a partir do meio-turno t da partida, N). Sem 'acel', vale contracao.N.
+  function gatilhoFase1(e) {
+    const c = CATALOGO.contracao;
+    if (c.N1 && !c.acel && !(e.anel > 0) && !(e.caidas && e.caidas.length)) return c.N1;   // D-37: 1ª contração mais tardia
+    if (!c.acel) return c.N;
+    return e.meioTurno >= c.acel.t ? c.acel.N : c.acel.N1;
+  }
+
+  function previsaoContracao(estado) {
+    const cfg = CATALOGO.contracao;
+    if (estado.resultado) return null;
+    const fase2 = !!(estado.caidas && estado.caidas.length);
+    const gatilho = fase2 ? cfg.NCelula : gatilhoFase1(estado);
+    if (!gatilho || (estado.semProgresso > gatilho && !cfg.acel)) return null;
+    const copia = clonar(estado);
+    const raio = mapaEfetivo(estado).raio;
+    let caem = null, fase = 2;
+    if (!fase2 && contrair(copia)) {
+      fase = 1; caem = [];
+      for (let q = -raio; q <= raio; q++) for (let r = -raio; r <= raio; r++)
+        if (Math.abs(q + r) <= raio && anelDe(q, r) === raio) caem.push([q, r]);
+    } else if (cfg.celula) {
+      const ev = contrairCelula(copia);
+      if (ev) caem = ev.caidas;
+    }
+    return caem ? { gatilho: gatilho, faltam: gatilho - estado.semProgresso, caem: caem, fase: fase } : null;
+  }
+
+  function aplicar(estado, acao, opcoes) {
+    if (estado.resultado) throw new Error('jogo encerrado');
+    const validar = !(opcoes && opcoes.validar === false);
+    if (validar) {
+      const c = canon(acao);
+      if (!acoesLegais(estado).some(function (a) { return canon(a) === c; }))
+        throw new Error('ação ilegal: ' + c);
+    }
+
+    const mapa = mapaEfetivo(estado);
+    const e = clonar(estado);
+    const ev = [];
+    const ator = e.jogador;
+    let occ = ocupar(e);   // fotografia antes dos efeitos (Perfurar, Encurralar, Repelir)
+    let houveDano = false;
+
+    function danificar(fonteId, alvoId, valor) {
+      const t = achar(e, alvoId);
+      const real = Math.min(valor, t.pv);
+      t.pv -= real;
+      if (real > 0) houveDano = true;
+      ev.push({ t: 'dano', fonte: fonteId, alvo: alvoId, valor: real, bruto: valor });   // bruto = dano calculado antes do limite pelos PV restantes
+    }
+
+    if (acao.a === 'passe') {
+      ev.push({ t: 'passe', jogador: ator });
+    } else {
+      const u = achar(e, acao.u);
+      const cat = CAT[u.tipo];
+      const cfgM = CATALOGO.moverEAgir || {};
+
+      // Ação composta: mover antes de agir. A fotografia de ocupação é refeita
+      // com a unidade já na nova casa (Encurralar, Perfurar e Repelir a veem).
+      if (acao.para && acao.a !== 'mover') {
+        ev.push({ t: 'mover', u: u.id, de: [u.q, u.r], para: acao.para.slice() });
+        u.q = acao.para[0]; u.r = acao.para[1];
+        occ = ocupar(e);
+      }
+
+      if (acao.a === 'mover') {
+        ev.push({ t: 'mover', u: u.id, de: [u.q, u.r], para: acao.para.slice() });
+        u.q = acao.para[0]; u.r = acao.para[1];
+
+      } else if (acao.a === 'atacar') {
+        const t = achar(e, acao.alvo);
+        let dano = cat.atq.dano;
+        if (cfgM.ativo) {
+          if (cfgM.bonus === 'A' && !acao.para) dano += 1;                 // parado: +1
+          else if (cfgM.bonus === 'B' && acao.para) {   // depois de mover: -1, ou o ajuste próprio do tipo
+            const aj = cfgM.ajusteAndar && cfgM.ajusteAndar[u.tipo];
+            // D-37: o Mineiro só mantém o dano cheio se o movimento atravessou obstáculo (destino inalcançável andando)
+            const cavou = chegouCavando(estado, u.id, acao.para);
+            dano = cavou ? dano : (aj !== undefined ? dano + aj : Math.max(1, dano - 1));
+          }
+        }
+        // Flanco geral (teste D-31): +1 se outra unidade do atacante estiver adjacente ao alvo
+        if (CATALOGO.flancoGeral && e.unidades.some(function (x) { return x.dono === u.dono && x.id !== u.id && dist(x.q, x.r, t.q, t.r) === 1; })) dano += 1;
+        if (cat.passiva === 'encurralar' && encurralado(mapa, occ, t)) dano += 1;
+        danificar(u.id, t.id, dano);
+        if (cat.passiva === 'perfurar') {
+          // inimigo imediatamente atrás do alvo, na mesma direção
+          const n = dist(u.q, u.r, t.q, t.r);
+          const atras = occ[chave(t.q + (t.q - u.q) / n, t.r + (t.r - u.r) / n)];
+          if (atras && atras.dono !== u.dono) danificar(u.id, atras.id, 1);
+        }
+
+      } else if (acao.a === 'hab') {
+        const t = achar(e, acao.alvo);
+        if (cat.hab === 'repelir') {
+          const dq = t.q - u.q, dr = t.r - u.r;   // adjacente: já é um vetor de direção
+          const dq2 = t.q + dq, dr2 = t.r + dr;
+          const cfgR = CATALOGO.repelir;
+          if (casaLivre(mapa, occ, dq2, dr2)) {
+            ev.push({ t: 'empurrao', fonte: u.id, alvo: t.id, de: [t.q, t.r], para: [dq2, dr2] });
+            t.q = dq2; t.r = dr2;
+            if (cfgR.livre > 0) danificar(u.id, t.id, cfgR.livre);
+          } else {
+            danificar(u.id, t.id, cfgR.bloqueado);   // bloqueado: não move
+          }
+        } else if (cat.hab === 'prender') {
+          t.preso = true;
+          ev.push({ t: 'preso', fonte: u.id, alvo: t.id });
+        } else if (cat.hab === 'remendar') {
+          const cm = CATALOGO.mana;
+          if (cm && (cm.modo === 'area' || (cm.modo === 'ambos' && acao.alvo === u.id))) {
+            const valorArea = cm.modo === 'ambos' ? cm.curaArea : cm.cura;
+            e.unidades.forEach(function (x) {
+              if (x.dono !== u.dono || dist(u.q, u.r, x.q, x.r) > cm.raio) return;
+              const v = Math.min(valorArea, CAT[x.tipo].pvMax - x.pv);
+              if (v > 0) { x.pv += v; ev.push({ t: 'cura', fonte: u.id, alvo: x.id, valor: v }); }
+            });
+          } else {
+            const v = Math.min(cm ? cm.cura : 1, CAT[t.tipo].pvMax - t.pv);
+            t.pv += v;
+            ev.push({ t: 'cura', fonte: u.id, alvo: t.id, valor: v });
+          }
+          if (cm) u.mana = 0;   // custa a mana cheia
+        } else if (cat.hab === 'investida') {
+          const de = [u.q, u.r];
+          u.q += DIRS[acao.dir][0] * acao.passos;
+          u.r += DIRS[acao.dir][1] * acao.passos;
+          ev.push({ t: 'mover', u: u.id, de: de, para: [u.q, u.r] });
+          let dano = cat.investidaDano !== undefined ? cat.investidaDano : cat.atq.dano;   // investidaDano: teste D-31
+          // flanco: outra unidade do dono do Batedor adjacente ao alvo
+          const flanco = e.unidades.some(function (x) {
+            return x.dono === u.dono && x.id !== u.id && dist(x.q, x.r, t.q, t.r) === 1;
+          });
+          if (flanco) dano += 1;
+          danificar(u.id, t.id, dano);
+        }
+      }
+    }
+
+    // Remover mortos (simultâneo dentro da ação).
+    const mortos = e.unidades.filter(function (x) { return x.pv <= 0; });
+    if (mortos.length) {
+      mortos.forEach(function (x) { ev.push({ t: 'morte', id: x.id }); });
+      e.unidades = e.unidades.filter(function (x) { return x.pv > 0; });
+      e.repeticoes = {};   // posições anteriores não voltam depois de uma morte
+    }
+
+    // Mana (D-32): regenera no fim de cada turno do dono, aconteça ou não uma cura.
+    if (CATALOGO.mana) e.unidades.forEach(function (x) {
+      if (x.dono === ator && x.mana !== undefined) x.mana = Math.min(CATALOGO.mana.max, x.mana + CATALOGO.mana.regen);
+    });
+
+    // "Preso" expira no fim do turno do dono da unidade.
+    // D-39 (imunidade pós-Prender, só se ligada): a unidade que acabou de ficar livre fica imune a novo Prender
+    // até o fim do seu próximo turno.
+    e.unidades.forEach(function (x) {
+      if (x.dono !== ator) return;
+      if (x.preso) { x.preso = false; if (CATALOGO.imunidadePrender) x.imune = true; }
+      else if (x.imune) delete x.imune;
+    });
+
+    // Progresso = dano ou morte. Cura, Prender e movimento não contam.
+    e.semProgresso = (houveDano || mortos.length) ? 0 : e.semProgresso + 1;
+
+    // 1) Aniquilação
+    const oponente = 1 - ator;
+    if (!e.unidades.some(function (x) { return x.dono === oponente && CAT[x.tipo].mov > 0; }))
+      e.resultado = { tipo: 'aniquilacao', vencedor: ator };
+
+    // Contração (D-18, opção B): ao completar N meios-turnos sem dano, o anel
+    // externo cai. Conta como progresso (zera o contador). Posições anteriores
+    // não voltam, então a contagem de repetição recomeça.
+    const cfgC = CATALOGO.contracao;
+    const fase2 = !!(e.caidas && e.caidas.length);
+    const gatilho = fase2 ? cfgC.NCelula : gatilhoFase1(e);
+    if (!e.resultado && gatilho && (cfgC.acel ? e.semProgresso >= gatilho : e.semProgresso === gatilho)) {
+      let c = fase2 ? null : contrair(e);
+      if (!c && cfgC.celula) c = contrairCelula(e);
+      if (c) { ev.push(c); e.semProgresso = 0; e.repeticoes = {}; }
+    }
+
+    e.jogador = oponente;
+    e.meioTurno += 1;
+
+    // 2) Imobilização (ignora Preso: D-04)
+    if (!e.resultado && gerar(e, true, true).length === 0)
+      e.resultado = { tipo: 'imobilizacao', vencedor: ator };
+
+    // 4) Repetição  5) Sem progresso
+    if (!e.resultado && CATALOGO.repeticaoEmpate) {
+      const k = chavePosicao(e);
+      e.repeticoes[k] = (e.repeticoes[k] || 0) + 1;
+      if (e.repeticoes[k] >= REPETICOES_EMPATE) e.resultado = { tipo: 'repeticao', vencedor: null };
+    }
+    if (!e.resultado && e.semProgresso >= LIMITE_SEM_PROGRESSO)
+      e.resultado = { tipo: 'semProgresso', vencedor: null };
+
+    if (e.resultado)
+      ev.push({ t: 'fim', tipo: e.resultado.tipo, vencedor: e.resultado.vencedor, meioTurno: e.meioTurno });
+
+    return { estado: e, eventos: ev };
+  }
+
+  /* ------------------------------------------------------------------------
+   * 8. SERIALIZAÇÃO, REPLAY, PERFT
+   * --------------------------------------------------------------------- */
+  function serializar(estado) { return JSON.stringify(estado); }
+
+  function desserializar(texto) {
+    const e = JSON.parse(texto);
+    if (e.v !== VERSAO_ESTADO) throw new Error('versão de estado incompatível: ' + e.v);
+    if (e.catalogo !== CATALOGO.versao) throw new Error('catálogo incompatível: ' + e.catalogo);
+    if (!MAPAS[e.mapa]) throw new Error('mapa desconhecido: ' + e.mapa);
+    return e;
+  }
+
+  // Reaplica uma lista de ações sobre um jogo novo (replay / link assíncrono).
+  function reproduzir(config, acoes) {
+    let e = novoJogo(config);
+    acoes.forEach(function (a) { e = aplicar(e, a).estado; });
+    return e;
+  }
+
+  // Contagem de nós por profundidade: regressão contra mudanças acidentais.
+  function perft(estado, prof) {
+    if (prof === 0 || estado.resultado) return 1;
+    let total = 0;
+    acoesLegais(estado).forEach(function (a) {
+      total += perft(aplicar(estado, a, { validar: false }).estado, prof - 1);
+    });
+    return total;
+  }
+
+  return {
+    // dados
+    DIRS: DIRS, CATALOGO: CATALOGO, MAPAS: MAPAS, EXERCITO_BASE: EXERCITO_BASE,
+    // construção
+    criarMapa: criarMapa, registrarMapa: registrarMapa, novoJogo: novoJogo,
+    // núcleo
+    acoesLegais: acoesLegais, aplicar: aplicar, resultado: function (e) { return e.resultado; },
+    chavePosicao: chavePosicao,
+    // utilidades
+    serializar: serializar, desserializar: desserializar, reproduzir: reproduzir, perft: perft,
+    dist: dist, dentro: dentro, canon: canon, mapaEfetivo: mapaEfetivo, anelDe: anelDe, previsaoContracao: previsaoContracao, alcanceAtaque: alcanceAtaque, definirEscalaPV: definirEscalaPV, regrasOficiais: regrasOficiais, regrasLegado: regrasLegado, regrasV4: regrasV4, destinosMover: destinosMover, chegouCavando: chegouCavando, EXERCITO_V4: EXERCITO_V4
+  };
+});
+
+</script>
+<script>
+/* =============================================================================
+ * ia.js  -  IAs simples sobre o motor (contrato: 03-motor.md seção 9)
+ *
+ *   ia.escolher(estado, acoes, rng) -> índice em 'acoes'
+ *
+ * 'rng' é uma função () => [0,1) com semente, fornecida pelo chamador.
+ * O motor nunca sorteia; toda aleatoriedade fica aqui, sob semente.
+ *
+ * Duas IAs:
+ *  - aleatoria: piso de comparação.
+ *  - busca(profundidade): minimax com poda alfa-beta sobre avaliação material.
+ *    profundidade 1 = gulosa de 1 jogada. Avaliação sempre do ponto de vista
+ *    de quem está escolhendo (raiz); empates entre melhores jogadas são
+ *    resolvidos por sorteio com semente (evita ciclos determinísticos).
+ * ========================================================================== */
+(function (raiz, fabrica) {
+  if (typeof module === 'object' && module.exports) module.exports = fabrica();
+  else raiz.IA = fabrica();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  const INF = 1e9;
+  const PADRAO = {
+    profundidade: 1,
+    pesoPV: 1,          // valor de 1 PV
+    pesoUnidade: 2,     // valor de manter uma unidade viva (morte vale mais que o PV perdido)
+    penalPrender: 1.5,  // D-37: custo de repetir Prender (0 desliga)
+    pesoAprox: 0.05     // gradiente: unidade móvel prefere ficar perto do inimigo mais próximo
+  };
+
+  // Avaliação do ponto de vista de 'persp'. Terminal: vitória/derrota dominam
+  // (vitória mais rápida vale mais); empate = 0.
+  function avaliar(M, estado, persp, cfg) {
+    if (estado.resultado) {
+      const v = estado.resultado.vencedor;
+      if (v === null) return 0;
+      return (v === persp ? 1 : -1) * (1000 - estado.meioTurno * 0.1);
+    }
+    const cat = M.CATALOGO.unidades;
+    let s = 0;
+    estado.unidades.forEach(function (u) {
+      s += (u.dono === persp ? 1 : -1) * (cfg.pesoPV * u.pv + cfg.pesoUnidade);
+    });
+    if (cfg.pesoAprox) {
+      const inimigos = estado.unidades.filter(function (x) { return x.dono !== persp; });
+      estado.unidades.forEach(function (u) {
+        if (u.dono !== persp || cat[u.tipo].mov === 0 || !inimigos.length) return;
+        let d = INF;
+        inimigos.forEach(function (x) { d = Math.min(d, M.dist(u.q, u.r, x.q, x.r)); });
+        s -= cfg.pesoAprox * d;
+      });
+    }
+    return s;
+  }
+
+  function aleatoria() {
+    return {
+      nome: 'aleatoria',
+      escolher: function (estado, acoes, rng) { return Math.floor(rng() * acoes.length); }
+    };
+  }
+
+  function busca(M, opcoes) {
+    const cfg = Object.assign({}, PADRAO, opcoes || {});
+
+    const ult = {};   // por jogador: a última ação escolhida foi Prender?
+    function ehPrender(estado, ac) {
+      if (ac.a !== 'hab') return false;
+      const u = estado.unidades.find(function (x) { return x.id === ac.u; });
+      return !!u && M.CATALOGO.unidades[u.tipo].hab === 'prender';
+    }
+
+    function minimax(estado, prof, alfa, beta, raizJogador) {
+      if (prof === 0 || estado.resultado) return avaliar(M, estado, raizJogador, cfg);
+      const acoes = M.acoesLegais(estado);
+      if (!acoes.length) return avaliar(M, estado, raizJogador, cfg);
+      let i, v;
+      if (estado.jogador === raizJogador) {
+        v = -INF;
+        for (i = 0; i < acoes.length; i++) {
+          v = Math.max(v, minimax(M.aplicar(estado, acoes[i], { validar: false }).estado, prof - 1, alfa, beta, raizJogador));
+          alfa = Math.max(alfa, v);
+          if (alfa >= beta) break;
+        }
+      } else {
+        v = INF;
+        for (i = 0; i < acoes.length; i++) {
+          v = Math.min(v, minimax(M.aplicar(estado, acoes[i], { validar: false }).estado, prof - 1, alfa, beta, raizJogador));
+          beta = Math.min(beta, v);
+          if (alfa >= beta) break;
+        }
+      }
+      return v;
+    }
+
+    return {
+      nome: 'busca' + cfg.profundidade,
+      cfg: cfg,
+      ult: ult,
+      escolher: function (estado, acoes, rng) {
+        if (acoes.length === 1) return 0;
+        const eu = estado.jogador;
+        let melhor = -INF, empatadas = [];
+        for (let i = 0; i < acoes.length; i++) {
+          const filho = M.aplicar(estado, acoes[i], { validar: false }).estado;
+          // janela começa logo abaixo do melhor: o que empata com ele sai exato
+          let v = minimax(filho, cfg.profundidade - 1, melhor - 1e-6, INF, eu);
+          // D-37: Prender no turno seguinte a outro Prender do mesmo jogador só compensa se evitar perda relevante
+          // (a IA decide por ganho de material; repetir sem ganho gasta o turno): custo fixo de 1,5 sobre o valor da ação.
+          if (cfg.penalPrender && ult[eu] && ehPrender(estado, acoes[i])) v -= cfg.penalPrender;
+          if (v > melhor + 1e-9) { melhor = v; empatadas = [i]; }
+          else if (Math.abs(v - melhor) <= 1e-9) empatadas.push(i);
+        }
+        const k = empatadas[Math.floor(rng() * empatadas.length)];
+        ult[eu] = ehPrender(estado, acoes[k]);
+        return k;
+      }
+    };
+  }
+
+  // Gerador com semente (mulberry32), reutilizável por simulador e interface.
+  function criarRng(semente) {
+    let a = semente | 0;
+    return function () {
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  return { PADRAO: PADRAO, avaliar: avaliar, aleatoria: aleatoria, busca: busca, criarRng: criarRng };
+});
+
+</script>
+<script>
+/* ===========================================================================
+ * Interface do protótipo (hot-seat e IA). Não contém regra de jogo: tudo o que
+ * é regra vem do Motor (motor.js). Aqui só se desenha o estado e se traduz
+ * cliques em ações que o motor já considera legais.
+ * ========================================================================= */
+(function () {
+  'use strict';
+  const M = Motor, CAT = M.CATALOGO.unidades, DIRS = M.DIRS;
+  const TAM = 30, SQ3 = Math.sqrt(3), RAIO_BASE = 5;
+  const NS = 'http://www.w3.org/2000/svg';
+
+  /* ---------------------------------------------------------- textos */
+  const COR = ['Azul', 'Laranja'];
+  const HAB_NOME = { repelir: 'Repelir', prender: 'Prender', remendar: 'Curar', investida: 'Investida' };
+  const DESC = {
+    Se: 'Linha de frente. Ataca adjacente (dano 2). <b>Repelir:</b> causa 1 de dano e empurra um inimigo adjacente 1 casa; se a casa de destino estiver bloqueada (unidade, obstáculo ou borda), ele não se move e sofre 2. O Repelir não perde dano por andar antes.',
+    Be: 'Dano à distância. Atira em linha reta a 2 a 5 casas (dano 2); não atira em adjacente. <b>Por cima de obstáculos:</b> a linha pode atravessar obstáculos, mas aí o alcance máximo cai para 3. <b>Perfurar:</b> o inimigo logo atrás do alvo também sofre 1.',
+    Ba: 'Muito móvel (5). Ataca adjacente (dano 2; 1 se andou antes). <b>Investida:</b> anda até 3 casas em linha reta e ataca (dano 2); +1 de dano se um aliado seu está adjacente ao alvo.',
+    La: 'Pressão em espaço fechado. Ataca em linha a exatamente 2 casas (dano 2; <b>3 se andou antes</b>). <b>Encurralar:</b> +1 de dano se o alvo está colado em obstáculo, borda ou outra unidade (até 4).',
+    En: 'Controle. Ataca a 1 a 3 casas (dano 1). <b>Prender:</b> o alvo, a 1 a 3 casas, não pode se mover até o fim do próximo turno do dono dele. Depois disso o alvo fica imune a Prender por um turno dele.',
+    Re: 'Suporte. Ataca adjacente (dano 1). <b>Curar</b> (custa a mana cheia, 4; começa cheia e ganha 1 por turno seu): <b>3 PV em um aliado ferido adjacente</b>, ou <b>1 PV em área</b>: ele e todo aliado ferido a até 2 casas.',
+    Mi: 'Infiltrador. Ataca adjacente (dano 2). Anda 2 casas ou <b>escava até 3 casas em linha reta atravessando obstáculos</b> (não atravessa unidades) e pousa numa casa livre. Se andou antes de atacar, causa 1, <b>exceto se o movimento atravessou um obstáculo: então causa 2</b>.',
+    At: 'Imóvel. Ataca em linha a 1 a 3 casas (dano 2). <b>Âncora:</b> aliados adjacentes não podem ser empurrados nem presos.'
+  };
+  const MOTIVO = {
+    aniquilacao: 'O adversário ficou sem unidades que se movem.',
+    imobilizacao: 'No início do turno, o adversário não tinha nenhuma ação possível: todas as unidades estavam bloqueadas.',
+    repeticao: 'A mesma posição se repetiu três vezes.',
+    semProgresso: '30 meios-turnos sem dano com o tabuleiro já no menor tamanho.'
+  };
+
+  /* ---------------------------------------------------------- estado da interface */
+  let jogo = null, acoes = [], legais = [], ia = null, rng = null;
+  let modo = 'ia1', humano = 0;
+  let sel = null, tipoAcao = null, passoInv = null;   // seleção atual
+  let pendMov = null;   // mover e agir: a unidade já andou {id, para}; falta atacar ou terminar o turno
+  let snapshots = [], confirmaTerm = false, chaveBarra = '';   // desfazer jogada; terminar turno em 2 toques
+  let insp = null;      // inspeção: id da unidade inimiga cujo alcance está sendo mostrado (só consulta)
+  let visMov = null;    // só desenho: unidade mostrada na casa de destino antes de a jogada valer
+  let ultimoEv = [], log = [], pensando = false, fimMostrado = false, timer = null;
+  // Animação (protótipo): a IA mostra a unidade escolhida e o alvo pisca antes de a jogada valer.
+  let animando = false, geracao = 0, ritmo = 1, selIA = null, destPrev = null, piscar = {};
+  const T = { sel: 850, destino: 550, depoisMover: 450, pisca: 900, apos: 450, pensa: 450 };   // ms, multiplicados por 'ritmo'
+  let stats = { id: '', partidas: 0, revanches: 0, hist: [], aval: [], visto: false, dicas: true, guia: false };
+  const el = function (id) { return document.getElementById(id); };
+  const chave = function (q, r) { return q + ',' + r; };
+
+  /* ---------------------------------------------------------- armazenamento local (opcional) */
+  function lerStats() { try { const s = JSON.parse(localStorage.getItem('taoReborn42.stats')); if (s) stats = Object.assign(stats, s); } catch (x) { /* sem armazenamento */ } if (!stats.id) { stats.id = 'T' + Math.random().toString(36).slice(2, 7).toUpperCase(); gravarStats(); } }
+  function gravarStats() { try { localStorage.setItem('taoReborn42.stats', JSON.stringify(stats)); } catch (x) { /* sem armazenamento */ } }
+
+  /* ---------------------------------------------------------- partida */
+  // Espera 'ms' (escalado pelo ritmo) e roda f, a menos que outra partida tenha começado.
+  function espera(ms, f) {
+    const g = geracao, t = ms * ritmo;
+    if (t <= 0) { f(); return; }
+    timer = setTimeout(function () { if (g === geracao) f(); }, t);
+  }
+  function ehHumano(j) { return modo === '2j' || j === humano; }
+  function girado() { return modo !== '2j' && humano === 0; }   // contra a IA, quem joga fica sempre embaixo (azul começa em cima: gira 180°)
+
+  function novaPartida() {
+    clearTimeout(timer); pensando = false; animando = false; geracao++; selIA = destPrev = null; piscar = {};
+    // Regras da variante v4 (D-33): oficiais do v3 + raio 5, 7 peças, Batedor e Atalaia dano 2, cura com mana.
+    M.regrasV4(); const esc = M.CATALOGO.escalaPV; visMov = null;
+    jogo = M.novoJogo({ mapa: 'hex5', exercito: M.EXERCITO_V4 }); snapshots = []; confirmaTerm = false; acoes = []; log = []; ultimoEv = []; fimMostrado = false;
+    sel = tipoAcao = passoInv = pendMov = insp = null;
+    rng = IA.criarRng((Date.now() ^ (Math.random() * 1e9)) | 0);
+    ia = modo === '2j' ? null : IA.busca(M, { profundidade: modo === 'ia2' ? 2 : 1, pesoAprox: 0.05, pesoUnidade: 2 * esc });
+    fecharJanelas();
+    atualizar();
+  }
+
+  function atualizar() {
+    legais = M.acoesLegais(jogo);
+    desenhar();
+    if (jogo.resultado) {
+      if (!fimMostrado) { fimMostrado = true; stats.partidas++; registrarPartida(); gravarStats(); setTimeout(mostrarFim, 450); }
+      return;
+    }
+    if (!ehHumano(jogo.jogador)) agendarIA();
+  }
+
+  function agendarIA() {
+    pensando = true; desenhar();
+    espera(T.pensa, function () {
+      const i = ia.escolher(jogo, legais, rng);
+      pensando = false;
+      executar(legais[i], true);
+    });
+  }
+
+  /* ---------------------------------------------------------- efeitos (animação mínima) */
+  // Efeitos simples com a Web Animations API sobre o SVG. Com ?ritmo=0 (testes) ou
+  // prefers-reduced-motion nada é animado. Duração em ms, escalada por 'ritmo'.
+  const semMovimento = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  function efeitosAtivos() { return ritmo > 0 && !semMovimento && !!document.body.animate; }
+  function xy(g) { const m = /translate\(([-\d.]+),([-\d.]+)\)/.exec(g.getAttribute('transform') || ''); return m ? [+m[1], +m[2]] : [0, 0]; }
+  function tr(p, extra) { return 'translate(' + p[0] + 'px,' + p[1] + 'px)' + (extra || ''); }
+  // Ícones das unidades (desenhos originais, grade 24x24, traço escuro sobre a ficha).
+  // Provisórios, como os nomes (D-28). Tanque: escudo. Atirador: arco e flecha. Batedor: cavalo.
+  // Lanceiro: lança. Emboscador: teia de aranha. Remendador: cruz. Atalaia: torre.
+  const ICONES = {
+    Se: '<path d="M12 3 L20 6 V12 C20 17 16.5 20.5 12 22 C7.5 20.5 4 17 4 12 V6 Z"/><path d="M12 3 V22 M4.5 11 H19.5"/>',
+    Be: '<path d="M7 3 C18 7 18 17 7 21"/><path d="M7 3 V21"/><path d="M3 12 H20"/><path class="cheio" d="M21 12 L16.5 9.5 V14.5 Z"/>',
+    Ba: '<path class="cheio" d="M6 22 C5.5 17 6 11 9 6.5 L9.8 2.2 L12.8 4.8 C16.2 6.5 19.5 11 20.6 15.6 C21.2 17.6 21 20 19.6 20.9 C18.5 21.4 17.6 20.7 17.2 19.6 L14.8 15.8 C13.4 15 12 15.8 12 17.5 L12.6 22 Z"/><path class="crina" d="M10.2 8.6 C8.6 11.6 8.2 15 8.8 19"/><circle class="olho" cx="14.8" cy="9" r="1"/><circle class="olho" cx="19.2" cy="18" r=".6"/>',
+    La: '<path d="M2.5 21.5 L16 8" style="stroke-width:2.2"/><path class="cheio" d="M22 2 L18.4 9.6 L14.4 5.6 Z"/><path class="cheio" d="M12 11.6 L6.8 8.2 L8.2 13.2 Z" style="stroke-width:1"/>',
+    En: '<path d="M12.00 12.00 L12.00 0.80 M12.00 12.00 L19.92 4.08 M12.00 12.00 L23.20 12.00 M12.00 12.00 L19.92 19.92 M12.00 12.00 L12.00 23.20 M12.00 12.00 L4.08 19.92 M12.00 12.00 L0.80 12.00 M12.00 12.00 L4.08 4.08 M12.00 7.80 Q13.29 8.90 14.97 9.03 Q15.10 10.71 16.20 12.00 Q15.10 13.29 14.97 14.97 Q13.29 15.10 12.00 16.20 Q10.71 15.10 9.03 14.97 Q8.90 13.29 7.80 12.00 Q8.90 10.71 9.03 9.03 Q10.71 8.90 12.00 7.80 M12.00 4.40 Q14.33 6.38 17.37 6.63 Q17.62 9.67 19.60 12.00 Q17.62 14.33 17.37 17.37 Q14.33 17.62 12.00 19.60 Q9.67 17.62 6.63 17.37 Q6.38 14.33 4.40 12.00 Q6.38 9.67 6.63 6.63 Q9.67 6.38 12.00 4.40 M12.00 1.00 Q15.37 3.87 19.78 4.22 Q20.13 8.63 23.00 12.00 Q20.13 15.37 19.78 19.78 Q15.37 20.13 12.00 23.00 Q8.63 20.13 4.22 19.78 Q3.87 15.37 1.00 12.00 Q3.87 8.63 4.22 4.22 Q8.63 3.87 12.00 1.00" style="stroke-width:1.5"/>',
+    Re: '<path d="M12 4.5 V19.5 M4.5 12 H19.5" style="stroke-width:4.5"/>',
+    Mi: '<path d="M3.5 21 L16 8.5" style="stroke-width:2.4"/><path d="M7.5 3.5 Q20.5 2.5 21.5 15.5" style="stroke-width:2.6"/>',
+    At: '<path class="cheio" d="M6.5 21 V11 H5 V5.5 H8.5 V8 H10.5 V5.5 H13.5 V8 H15.5 V5.5 H19 V11 H17.5 V21 Z"/>'
+  };
+  function icone(tipo, x, y, tam) {
+    const k = tam / 24;
+    return '<g class="ico" transform="translate(' + (x - tam / 2) + ',' + (y - tam / 2) + ') scale(' + k.toFixed(3) + ')">' + ICONES[tipo] + '</g>';
+  }
+
+  /* ---------------------------------------------------------- efeitos visuais por tipo (D-40) */
+  // Cada efeito é uma função pura de desenho: recebe posições SVG, cria elementos, anima com a Web
+  // Animations API e se remove. Os eventos do motor escolhem o efeito (efeitosAcao). A página de laboratório
+  // (?lab=1) dispara cada um isoladamente. 'escFx' é o multiplicador de duração do laboratório.
+  let escFx = 1;
+  const NSV = 'http://www.w3.org/2000/svg';
+  function nv(pai, tag, at, st) {
+    const n = document.createElementNS(NSV, tag);
+    Object.keys(at || {}).forEach(function (k) { n.setAttribute(k, at[k]); });
+    Object.keys(st || {}).forEach(function (k) { n.style[k] = st[k]; });
+    n.style.pointerEvents = 'none';
+    (pai || el('tabuleiro')).appendChild(n);
+    return n;
+  }
+  function dur(ms) { return ms * ritmo * escFx; }
+  function rodar(n, frames, ms, opt) { return n.animate(frames, Object.assign({ duration: dur(ms), fill: 'both', easing: 'ease-out' }, opt || {})); }
+  function grupoEm(p) { return nv(null, 'g', { transform: 'translate(' + p[0].toFixed(1) + ',' + p[1].toFixed(1) + ')' }); }
+  function limpar(g, ms) { setTimeout(function () { g.remove(); }, dur(ms) + 80); }
+  function depois(ms, f) { if (ms <= 0) f(); else setTimeout(f, dur(ms)); }
+  const FX = {
+    // anel e faíscas no ponto de impacto; v = dano (aumenta o efeito)
+    impacto: function (p, v, cor) {
+      const g = grupoEm(p), k = 1 + 0.18 * (v || 1);
+      const an = nv(g, 'circle', { r: 12, fill: 'none', 'stroke-width': 3 }, { stroke: cor || '#ff5d5d' });
+      rodar(an, [{ transform: 'scale(.4)', opacity: 1 }, { transform: 'scale(' + (2 * k).toFixed(2) + ')', opacity: 0 }], 380);
+      for (let i = 0; i < 6; i++) {
+        const deg = 60 * i + 25;
+        const ch = nv(g, 'line', { x1: 0, y1: 0, x2: 6, y2: 0, 'stroke-width': 2.5, 'stroke-linecap': 'round' }, { stroke: '#ffd2a0' });
+        rodar(ch, [{ transform: 'rotate(' + deg + 'deg) translateX(8px)', opacity: 1 }, { transform: 'rotate(' + deg + 'deg) translateX(' + Math.round(22 * k) + 'px)', opacity: 0 }], 360);
+      }
+      limpar(g, 420);
+    },
+    // Atirador: dardo luminoso do atirador ao alvo
+    tiro: function (pa, pd) {
+      const L = Math.hypot(pd[0] - pa[0], pd[1] - pa[1]) || 1, g = nv(null, 'g');
+      const ln = nv(g, 'line', { x1: pa[0], y1: pa[1], x2: pd[0], y2: pd[1], 'stroke-width': 3, 'stroke-linecap': 'round', 'stroke-dasharray': L + ' ' + L }, { stroke: '#ffe08a' });
+      rodar(ln, [{ strokeDashoffset: L, opacity: 1 }, { strokeDashoffset: 0, opacity: 1, offset: .45 }, { strokeDashoffset: 0, opacity: 0 }], 360, { easing: 'linear' });
+      const pt = nv(g, 'circle', { r: 4.5 }, { fill: '#fff6d0' });
+      rodar(pt, [{ transform: tr(pa), opacity: 1 }, { transform: tr(pd), opacity: 1, offset: .45 }, { transform: tr(pd), opacity: 0 }], 360, { easing: 'linear' });
+      limpar(g, 360);
+    },
+    // Lanceiro: estocada de lança em linha
+    lanca: function (pa, pd) {
+      const d = [pd[0] - pa[0], pd[1] - pa[1]], L = Math.hypot(d[0], d[1]) || 1, u = [d[0] / L, d[1] / L], g = nv(null, 'g');
+      const ln = nv(g, 'line', { x1: pa[0] + u[0] * 14, y1: pa[1] + u[1] * 14, x2: pa[0] + u[0] * 36, y2: pa[1] + u[1] * 36, 'stroke-width': 5, 'stroke-linecap': 'round' }, { stroke: '#e6e9ee' });
+      const f = Math.max(0, L - 50);
+      rodar(ln, [{ transform: tr([0, 0]), opacity: 1 }, { transform: tr([u[0] * f, u[1] * f]), opacity: 1, offset: .6 }, { transform: tr([u[0] * f, u[1] * f]), opacity: 0 }], 300, { easing: 'ease-in' });
+      limpar(g, 300);
+    },
+    // Emboscador: arco curvo (ataque em laranja, Prender em roxo)
+    arco: function (pa, pd, cor) {
+      const dx = pd[0] - pa[0], dy = pd[1] - pa[1], c = [(pa[0] + pd[0]) / 2 - dy * .28, (pa[1] + pd[1]) / 2 + dx * .28], g = nv(null, 'g');
+      const pth = nv(g, 'path', { d: 'M' + pa[0] + ',' + pa[1] + ' Q' + c[0] + ',' + c[1] + ' ' + pd[0] + ',' + pd[1], fill: 'none', 'stroke-width': 3, 'stroke-linecap': 'round' }, { stroke: cor || '#ffb36b' });
+      const Tt = pth.getTotalLength ? pth.getTotalLength() : 100;
+      pth.setAttribute('stroke-dasharray', Tt + ' ' + Tt);
+      rodar(pth, [{ strokeDashoffset: Tt, opacity: 1 }, { strokeDashoffset: 0, opacity: 1, offset: .5 }, { strokeDashoffset: 0, opacity: 0 }], 420, { easing: 'linear' });
+      limpar(g, 420);
+    },
+    // Prender: teia hexagonal que se fecha sobre o alvo
+    teia: function (p) {
+      const g = grupoEm(p), pts = function (r) { let s = ''; for (let i = 0; i < 6; i++) { const a = Math.PI / 3 * i; s += (r * Math.cos(a)).toFixed(1) + ',' + (r * Math.sin(a)).toFixed(1) + ' '; } return s; };
+      const w = nv(g, 'g', {}, { transformOrigin: '0 0' });
+      nv(w, 'polygon', { points: pts(12), fill: 'none', 'stroke-width': 1.8 }, { stroke: '#c58bff' });
+      nv(w, 'polygon', { points: pts(21), fill: 'rgba(197,139,255,.12)', 'stroke-width': 1.8 }, { stroke: '#c58bff' });
+      for (let i = 0; i < 6; i++) { const a = Math.PI / 3 * i; nv(w, 'line', { x1: 0, y1: 0, x2: (21 * Math.cos(a)).toFixed(1), y2: (21 * Math.sin(a)).toFixed(1), 'stroke-width': 1.5 }, { stroke: '#c58bff' }); }
+      rodar(w, [{ transform: 'scale(.3) rotate(-30deg)', opacity: 0 }, { transform: 'scale(1) rotate(0deg)', opacity: 1, offset: .3 }, { transform: 'scale(1.03)', opacity: 1, offset: .75 }, { transform: 'scale(1.15)', opacity: 0 }], 700);
+      limpar(g, 700);
+    },
+    // Remendador: cruzes que sobem; area = onda verde que cobre o raio da cura
+    cura: function (p, area) {
+      const g = grupoEm(p);
+      const an = nv(g, 'circle', { r: 22, fill: area ? 'rgba(95,211,200,.10)' : 'none', 'stroke-width': 2.5 }, { stroke: '#5fd3c8' });
+      rodar(an, [{ transform: 'scale(.3)', opacity: 1 }, { transform: 'scale(' + (area ? 4.6 : 1.6) + ')', opacity: 0 }], area ? 700 : 480);
+      [-9, 0, 9].forEach(function (x, i) {
+        const t = nv(g, 'text', { x: x, y: 4, 'text-anchor': 'middle', 'font-size': 15, 'font-weight': 700 }, { fill: '#5fd3c8' });
+        t.textContent = '+';
+        rodar(t, [{ transform: 'translateY(4px)', opacity: 0 }, { transform: 'translateY(-8px)', opacity: 1, offset: .3 }, { transform: 'translateY(-30px)', opacity: 0 }], 650, { delay: dur(90 * i) });
+      });
+      limpar(g, 850);
+    },
+    // Repelir: onda de choque do Tanque na direção do alvo
+    onda: function (pa, pd) {
+      const g = grupoEm(pa), d = [pd[0] - pa[0], pd[1] - pa[1]], L = Math.hypot(d[0], d[1]) || 1;
+      [0, 1].forEach(function (i) {
+        const an = nv(g, 'circle', { r: 16, fill: 'none', 'stroke-width': 3 }, { stroke: '#ffb36b' });
+        rodar(an, [{ transform: 'translate(0px,0px) scale(.5)', opacity: .9 }, { transform: 'translate(' + (d[0] / L * 26) + 'px,' + (d[1] / L * 26) + 'px) scale(1.7)', opacity: 0 }], 380, { delay: dur(110 * i) });
+      });
+      limpar(g, 520);
+    },
+    // Investida do Batedor: rastro translúcido do ponto de partida ao fim da corrida
+    rastro: function (pa, pb, cor) {
+      const g = nv(null, 'g');
+      const ln = nv(g, 'line', { x1: pa[0], y1: pa[1], x2: pb[0], y2: pb[1], 'stroke-width': 14, 'stroke-linecap': 'round' }, { stroke: cor || '#7aa2ff' });
+      rodar(ln, [{ opacity: .5 }, { opacity: 0 }], 420, { easing: 'ease-in' });
+      limpar(g, 420);
+    },
+    // Mineiro: terra levantada ao entrar e sair do túnel
+    terra: function (p) {
+      const g = grupoEm(p);
+      for (let i = 0; i < 7; i++) {
+        const a = -Math.PI * (i / 6), r = 6 + (i % 3) * 3;
+        const c = nv(g, 'circle', { r: 3.2 - (i % 3) * .5 }, { fill: i % 2 ? '#8b7355' : '#b09870' });
+        rodar(c, [{ transform: 'translate(0px,4px) scale(.6)', opacity: 1 }, { transform: 'translate(' + (Math.cos(a) * (r + 12)).toFixed(1) + 'px,' + (Math.sin(a) * (r + 8) - 6).toFixed(1) + 'px) scale(1.2)', opacity: 1, offset: .5 }, { transform: 'translate(' + (Math.cos(a) * (r + 16)).toFixed(1) + 'px,' + (Math.sin(a) * (r + 8) + 8).toFixed(1) + 'px) scale(.8)', opacity: 0 }], 520);
+      }
+      limpar(g, 540);
+    },
+    // eliminação: estouro cinza maior
+    morte: function (p) { FX.impacto(p, 4, '#c9d0da'); }
+  };
+
+  function noTab(id) { return el('tabuleiro').querySelector('g.un[data-id="' + id + '"]'); }
+  function fotografar() {   // posição e cópia de cada unidade antes de a jogada valer
+    const f = {};
+    el('tabuleiro').querySelectorAll('g.un').forEach(function (g) { f[g.dataset.id] = { t: xy(g), no: g.cloneNode(true) }; });
+    return f;
+  }
+  function numero(p, txt, cls, atraso) {
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('class', 'num ' + cls); t.setAttribute('x', p[0]); t.setAttribute('y', p[1] - 6); t.textContent = txt;
+    el('tabuleiro').appendChild(t);
+    const an = t.animate([{ transform: 'translateY(0)', opacity: 1 }, { transform: 'translateY(-26px)', opacity: 1, offset: .6 }, { transform: 'translateY(-34px)', opacity: 0 }],
+      { duration: 650 * ritmo, delay: atraso * ritmo, easing: 'ease-out', fill: 'both' });
+    an.onfinish = function () { t.remove(); };
+  }
+  // Antes do commit: estocada do atacante e números de dano/cura/Prender sobre o alvo.
+  function efeitosAcao(evs, acao) {
+    if (!efeitosAtivos()) return;
+    acao = acao || {};
+    evs.forEach(function (ev) {
+      if (ev.t === 'dano' && ev.valor > 0) {
+        const a = noTab(ev.fonte), d = noTab(ev.alvo), uf = unidade(ev.fonte), tipo = uf ? uf.tipo : '';
+        if (a && d && a !== d) {
+          const pa = xy(a), pd = xy(d), v = [(pd[0] - pa[0]) * .38, (pd[1] - pa[1]) * .38];
+          if (tipo === 'Be') FX.tiro(pa, pd);
+          else if (tipo === 'La') FX.lanca(pa, pd);
+          else if (tipo === 'En') FX.arco(pa, pd);
+          if (tipo !== 'Be' && tipo !== 'En') a.animate([{ transform: tr(pa) }, { transform: tr([pa[0] + v[0], pa[1] + v[1]]), offset: .4 }, { transform: tr(pa) }], { duration: 300 * ritmo * escFx, easing: 'ease-in-out' });
+        }
+        if (d) { const pd2 = xy(d); depois(tipo === 'Be' ? 150 : 110, function () { FX.impacto(pd2, ev.valor); }); numero(pd2, '−' + ev.valor, 'dano', 120); }
+      } else if (ev.t === 'cura') {
+        const d = noTab(ev.alvo);
+        if (d && ev.valor > 0) { numero(xy(d), '+' + ev.valor, 'cura', 80); if (!(acao.a === 'hab' && acao.alvo === acao.u && ev.alvo !== acao.u)) FX.cura(xy(d), acao.alvo === acao.u && ev.alvo === acao.u); }
+      } else if (ev.t === 'preso') {
+        const a = noTab(ev.fonte), d = noTab(ev.alvo);
+        if (a && d) { FX.arco(xy(a), xy(d), '#c58bff'); const pd = xy(d); depois(200, function () { FX.teia(pd); }); numero(pd, 'preso', 'preso', 80); }
+      } else if (ev.t === 'empurrao') {
+        const a = noTab(ev.fonte), d = noTab(ev.alvo); if (a && d) FX.onda(xy(a), xy(d));
+      } else if (ev.t === 'mover') {
+        const de = px(ev.de[0], ev.de[1]), para = px(ev.para[0], ev.para[1]), un = unidade(ev.u);
+        if (acao.a === 'hab' && acao.dir !== undefined && ev.u === acao.u && un && un.tipo === 'Ba') FX.rastro(de, para, un.dono === 0 ? '#4da3ff' : '#ff9a3c');
+        else if (un && un.tipo === 'Mi' && un.q === ev.de[0] && un.r === ev.de[1] && M.chegouCavando(jogo, ev.u, ev.para)) { FX.terra(de); depois(160, function () { FX.terra(para); }); }
+      }
+    });
+  }
+  // Depois do commit: deslize das unidades que mudaram de casa e saída das eliminadas.
+  // Devolve a duração (ms, sem escala) que a interface deve esperar antes de liberar a jogada.
+  function efeitosEstado(antes, evs) {
+    if (!efeitosAtivos()) return 0;
+    let total = 0;
+    el('tabuleiro').querySelectorAll('g.un').forEach(function (g) {
+      const f = antes[g.dataset.id], p = xy(g);
+      if (f && (f.t[0] !== p[0] || f.t[1] !== p[1])) {
+        g.animate([{ transform: tr(f.t) }, { transform: tr(p) }], { duration: 260 * ritmo, easing: 'ease-out' });
+        total = Math.max(total, 260);
+      }
+    });
+    evs.forEach(function (ev) {
+      if (ev.t !== 'morte' || !antes[ev.id]) return;
+      const f = antes[ev.id], g = f.no;
+      el('tabuleiro').appendChild(g); FX.morte(f.t);
+      const an = g.animate([{ transform: tr(f.t), opacity: 1 }, { transform: tr(f.t, ' scale(.3)'), opacity: 0 }], { duration: 420 * ritmo, easing: 'ease-in', fill: 'both' });
+      an.onfinish = function () { g.remove(); };
+      total = Math.max(total, 420);
+    });
+    return total;
+  }
+
+  // Aplica a ação com feedback visual: (IA) mostra a unidade escolhida e o destino;
+  // quem vai sofrer dano/cura/Prender pisca 2x ANTES de o estado mudar (assim o
+  // eliminado também pisca); depois a jogada vale e há uma pausa curta para ler o tabuleiro.
+  function executar(acao, daIA) {
+    const r = M.aplicar(jogo, acao);   // valida; o estado só vale no commit
+    if (!daIA) snapshots.push({ estado: jogo, acoes: acoes.slice(), log: log.slice() });   // para 'Desfazer jogada'
+    const pisca = {};
+    r.eventos.forEach(function (ev) {
+      if (ev.t === 'dano' && ev.valor > 0) pisca[ev.alvo] = 'atq';
+      else if (ev.t === 'cura') pisca[ev.alvo] = pisca[ev.alvo] || 'cura';
+      else if (ev.t === 'preso') pisca[ev.alvo] = 'preso';
+    });
+    const temPisca = Object.keys(pisca).length > 0;
+    animando = true; sel = tipoAcao = passoInv = pendMov = insp = null;
+
+    function commit() {
+      const quem = jogo.jogador, antes = efeitosAtivos() ? fotografar() : {};
+      jogo = r.estado; acoes.push(acao); ultimoEv = r.eventos;
+      const linhas = r.eventos.map(function (ev) { return narrar(ev, quem); }).filter(Boolean);
+      if (linhas.length) log.unshift(linhas);   // uma entrada por jogada, linhas em ordem cronológica
+      log = log.slice(0, 6);
+      selIA = destPrev = visMov = null; piscar = {};
+      legais = M.acoesLegais(jogo);
+      desenhar();
+      const anim = efeitosEstado(antes, r.eventos);
+      espera(Math.max(daIA ? T.apos : 0, anim), function () { animando = false; atualizar(); });
+    }
+    function fasePisca() {
+      if (!temPisca) { efeitosAcao(r.eventos, acao); commit(); return; }
+      piscar = pisca; desenhar();
+      efeitosAcao(r.eventos, acao);
+      espera(T.pisca, commit);
+    }
+    if (daIA && acao.u) {
+      selIA = acao.u; desenhar();
+      espera(T.sel, function () {
+        if (acao.para) destPrev = chave(acao.para[0], acao.para[1]);
+        else if (acao.dir !== undefined) { const u = unidade(acao.u); destPrev = fimInvestida(u, acao); }
+        if (destPrev) {
+          desenhar();
+          espera(T.destino, function () {
+            if (acao.para && acao.a !== 'mover') {   // mover e agir: a unidade chega, depois o alvo pisca
+              destPrev = null; visMov = { id: acao.u, para: acao.para };
+              desenhar(); espera(T.depoisMover, fasePisca);
+            } else fasePisca();
+          });
+        } else fasePisca();
+      });
+    } else fasePisca();
+  }
+
+  /* ---------------------------------------------------------- narração */
+  function nome(id) {
+    const dono = +id[0], tipo = id.slice(1);
+    return CAT[tipo].nome + ' (' + COR[dono].toLowerCase() + ')';
+  }
+  function narrar(ev, quem) {
+    switch (ev.t) {
+      case 'mover': return nome(ev.u) + ' move.';
+      case 'dano': return nome(ev.fonte) + ' causa ' + (ev.bruto > ev.valor ? ev.bruto + ' de dano em ' + nome(ev.alvo) + ' (' + ev.valor + ' aplicados, só restavam ' + ev.valor + ' PV).' : ev.valor + ' de dano em ' + nome(ev.alvo) + '.');
+      case 'empurrao': return nome(ev.fonte) + ' empurra ' + nome(ev.alvo) + '.';
+      case 'preso': return nome(ev.alvo) + ' foi preso.';
+      case 'cura': return nome(ev.fonte) + ' cura ' + nome(ev.alvo) + ' (+' + ev.valor + ').';
+      case 'morte': return nome(ev.id) + ' foi eliminado.';
+      case 'passe': return COR[ev.jogador] + ' passa a vez (unidades presas).';
+      case 'contracao':
+        return ev.modo === 'celula'
+          ? 'Contração: ' + ev.caidas.length + ' casa(s) caíram' + (ev.desloc.length ? ', ' + ev.desloc.length + ' unidade(s) deslocada(s).' : '.')
+          : 'Contração: a borda do tabuleiro caiu' + (ev.desloc.length ? ', ' + ev.desloc.length + ' unidade(s) deslocada(s).' : '.');
+      default: return null;
+    }
+  }
+
+  /* ---------------------------------------------------------- consultas */
+  function unidade(id) { return jogo.unidades.find(function (u) { return u.id === id; }); }
+  function unidadeEm(q, r) { return jogo.unidades.find(function (u) { return u.q === q && u.r === r; }); }
+  function acoesDe(id) { return legais.filter(function (a) { return a.u === id; }); }
+  // 'area' = a cura em área do Remendador (ação 'hab' cujo alvo é ele mesmo); o resto mantém o tipo da ação.
+  const tipoDe = function (a) { return a.a === 'hab' && a.alvo === a.u ? 'area' : a.a; };
+  const KINDS = ['mover', 'atacar', 'hab', 'area'];
+  function rotulo(cat, k) {
+    if (k === 'mover') return 'Mover';
+    if (k === 'atacar') return 'Atacar';
+    if (k === 'area') return 'Área +1';
+    return cat.hab === 'remendar' ? 'Curar +3' : HAB_NOME[cat.hab];
+  }
+  function linhaMana(u) {
+    const cm = M.CATALOGO.mana;
+    if (!cm || u.mana === undefined) return '';
+    return '<p class="desc" style="margin:8px 0 0"><b>Mana:</b> ' + u.mana + '/' + cm.max + (u.mana >= cm.max ? ' (cura disponível)' : ' (cura em ' + (cm.max - u.mana) + ' turno(s) seu(s))') + '.</p>';
+  }
+  const composta = function (a) { return !!(a.para && a.a !== 'mover'); };   // mover e depois agir
+  const mesmaCasa = function (p, q) { return p[0] === q[0] && p[1] === q[1]; };
+  // Ações sem mover antes (inclui o próprio Mover); a composta só entra pelo fluxo "andou".
+  function acoesParado(id) { return acoesDe(id).filter(function (a) { return !composta(a); }); }
+  // Ações possíveis depois de a unidade ter andado para 'para'
+  function acoesApos(id, para) { return acoesDe(id).filter(function (a) { return composta(a) && mesmaCasa(a.para, para); }); }
+  function tiposDe(id) {
+    const as = acoesParado(id);
+    return KINDS.filter(function (k) { return as.some(function (a) { return tipoDe(a) === k; }); });
+  }
+  function fimInvestida(u, a) { return chave(u.q + DIRS[a.dir][0] * a.passos, u.r + DIRS[a.dir][1] * a.passos); }
+  function posDe(id) { const u = unidade(id); return chave(u.q, u.r); }
+  function turnoHumano() { return jogo && !jogo.resultado && ehHumano(jogo.jogador) && !pensando && !animando; }
+
+  // Casas e unidades destacadas. Sem modo (tipoAcao nulo): casas verdes de movimento e inimigos
+  // no alcance do ataque (clique ataca). Com modo ('hab' ou 'area'): os alvos dessa habilidade.
+  function destaques() {
+    const h = {};
+    if (!sel) return h;
+    const u = unidade(sel), base = pendMov ? acoesApos(sel, pendMov.para) : acoesParado(sel);
+    if (!tipoAcao) {
+      base.forEach(function (a) {
+        if (a.a === 'atacar') h[posDe(a.alvo)] = 'atq';
+        else if (a.a === 'mover' && !pendMov) h[chave(a.para[0], a.para[1])] = 'dest';
+      });
+      return h;
+    }
+    base.filter(function (a) { return tipoDe(a) === tipoAcao; }).forEach(function (a) {
+      if (tipoDe(a) === 'area') {   // aliados feridos que a cura em área alcança
+        const cm = M.CATALOGO.mana, c0 = pendMov ? pendMov.para : [u.q, u.r];
+        jogo.unidades.forEach(function (x) {
+          if (x.dono === u.dono && M.dist(c0[0], c0[1], x.q, x.r) <= cm.raio && x.pv < CAT[x.tipo].pvMax) h[chave(x.q, x.r)] = 'cura';
+        });
+      } else if (a.dir !== undefined) {   // Investida: 1º a casa final, depois o alvo
+        if (passoInv === null) h[fimInvestida(u, a)] = 'dest';
+        else if (fimInvestida(u, a) === passoInv) h[posDe(a.alvo)] = 'hab';
+      } else h[posDe(a.alvo)] = u.tipo === 'Re' ? 'cura' : 'hab';
+    });
+    return h;
+  }
+
+  // Executa Mover; se dá para agir da casa escolhida, a jogada fica em aberto (a unidade já andou):
+  // atacar tocando no inimigo, usar a habilidade pelos botões ou terminar o turno.
+  function irPara(q, r) {
+    const p = [q, r], apos = acoesApos(sel, p);
+    if (!apos.length) { executar({ u: sel, a: 'mover', para: p }); return; }
+    pendMov = { id: sel, para: p }; visMov = { id: sel, para: p };
+    tipoAcao = null; passoInv = null; confirmaTerm = false; desenhar();
+  }
+
+  /* ---------------------------------------------------------- cliques */
+  function clicar(q, r) {
+    const k = chave(q, r), u = unidadeEm(q, r);
+    if (!turnoHumano()) {   // fora da vez (partida encerrada): ainda dá para inspecionar
+      if (jogo && !animando && !pensando && u) { insp = insp === u.id ? null : u.id; desenhar(); }
+      return;
+    }
+    if (pendMov) {   // já andou: tocar no inimigo ataca; habilidades pelos botões; outros toques não fazem nada
+      const ap = acoesApos(sel, pendMov.para);
+      if (tipoAcao && tipoAcao !== 'area') {
+        const c = u ? ap.filter(function (a) { return a.alvo === u.id && tipoDe(a) === tipoAcao; }) : [];
+        if (c.length) { executar(c[0]); return; }
+        tipoAcao = null; desenhar(); return;   // toque fora do alvo cancela o modo
+      }
+      if (tipoAcao === 'area') { tipoAcao = null; desenhar(); return; }
+      const d = u ? ap.filter(function (a) { return a.alvo === u.id && a.a === 'atacar'; }) : [];
+      if (d.length) executar(d[0]);
+      return;
+    }
+    if (sel) {
+      const su = unidade(sel), parado = acoesParado(sel);
+      if (tipoAcao) {   // modo habilidade: o toque no alvo executa; fora do alvo, cancela
+        const cand = parado.filter(function (a) { return tipoDe(a) === tipoAcao; });
+        let achadas = [];
+        if (tipoAcao === 'area') achadas = [];   // a cura em área só vale no botão de confirmar
+        else if (su.tipo === 'Ba') {
+          if (passoInv === null) {
+            achadas = cand.filter(function (a) { return fimInvestida(su, a) === k; });
+            if (achadas.length > 1) { passoInv = k; desenhar(); return; }
+          } else achadas = u ? cand.filter(function (a) { return fimInvestida(su, a) === passoInv && a.alvo === u.id; }) : [];
+        } else achadas = u ? cand.filter(function (a) { return a.alvo === u.id; }) : [];
+        if (achadas.length) { executar(achadas[0]); return; }
+        tipoAcao = passoInv = null; desenhar(); return;
+      }
+      // padrão: inimigo no alcance vermelho ataca; casa verde vazia move
+      const diretas = u && u.dono !== jogo.jogador ? parado.filter(function (a) { return a.a === 'atacar' && a.alvo === u.id; }) : [];
+      if (diretas.length) { executar(diretas[0]); return; }
+      if (!u && parado.some(function (a) { return a.a === 'mover' && a.para[0] === q && a.para[1] === r; })) { irPara(q, r); return; }
+    }
+    const jaInsp = insp;
+    insp = null;
+    if (u && u.dono === jogo.jogador && tiposDe(u.id).length) {
+      if (sel === u.id) { sel = tipoAcao = passoInv = null; } else { sel = u.id; tipoAcao = null; passoInv = null; }
+    } else if (u && u.dono !== jogo.jogador) {   // inimigo fora de alcance: mostra o alcance dele
+      sel = tipoAcao = passoInv = null; insp = jaInsp === u.id ? null : u.id;
+    } else { sel = tipoAcao = passoInv = null; }   // casa sem ação: desmarca
+    desenhar();
+  }
+
+  // Desfaz a última jogada do jogador (contra a IA, volta ao início do seu turno; na mesma tela, à jogada anterior).
+  function desfazer() {
+    if (!snapshots.length) return;
+    const sn = snapshots.pop();
+    clearTimeout(timer); geracao++; animando = false; pensando = false; selIA = destPrev = null; piscar = {}; visMov = null;
+    if (jogo.resultado && fimMostrado) { stats.partidas = Math.max(0, stats.partidas - 1); stats.hist.pop(); gravarStats(); }
+    jogo = sn.estado; acoes = sn.acoes; log = sn.log; ultimoEv = []; fimMostrado = false;
+    sel = tipoAcao = passoInv = pendMov = insp = null; confirmaTerm = false;
+    fecharJanelas(); atualizar();
+  }
+
+  // Barra de botões flutuante acima da peça selecionada: habilidades e, depois de andar, Terminar turno.
+  function desenharBarra() {
+    const b = el('barra'), wrap = el('tabWrap');
+    const su = sel && jogo && unidade(sel);
+    const chv = sel + '|' + (pendMov ? pendMov.para : '') + '|' + tipoAcao;
+    if (chv !== chaveBarra) { chaveBarra = chv; confirmaTerm = false; }
+    if (!su || !turnoHumano()) { b.hidden = true; return; }
+    const cat = CAT[su.tipo], base = pendMov ? acoesApos(sel, pendMov.para) : acoesParado(sel);
+    let h = '';
+    ['hab', 'area'].forEach(function (k) {
+      if (base.some(function (a) { return tipoDe(a) === k; }))
+        h += '<button data-k="' + k + '" title="' + (k === 'area' ? 'Cura em área: 1 PV em si e nos aliados a até 2 casas' : k === 'hab' && cat.hab === 'remendar' ? 'Curar 3 PV em um aliado adjacente' : '') + '" class="' + (tipoAcao === k ? 'ativo' : '') + '">' + rotulo(cat, k) + '</button>';
+    });
+    if (tipoAcao === 'area') h += '<button id="bbArea" class="principal">Confirmar</button>';
+    if (pendMov) {
+      const temAcao = base.some(function (a) { return a.a === 'atacar' || a.a === 'hab'; });
+      h += '<button id="bbTerminar" class="' + (confirmaTerm ? 'alerta' : 'principal') + '">' + (confirmaTerm ? 'Terminar sem agir?' : 'Terminar') + '</button><button id="bbVoltar" title="Desfazer movimento">Voltar</button>';
+    }
+    if (!h) { b.hidden = true; return; }
+    b.innerHTML = h; b.hidden = false;
+    b.querySelectorAll('button[data-k]').forEach(function (bt) {
+      bt.onclick = function () { tipoAcao = tipoAcao === bt.dataset.k ? null : bt.dataset.k; passoInv = null; desenhar(); };
+    });
+    if (el('bbArea')) el('bbArea').onclick = function () { const a = base.filter(function (x) { return tipoDe(x) === 'area'; })[0]; if (a) executar(a); };
+    if (el('bbTerminar')) el('bbTerminar').onclick = function () {
+      const temAcao = base.some(function (a) { return a.a === 'atacar' || a.a === 'hab'; });
+      if (temAcao && !confirmaTerm) { confirmaTerm = true; desenharBarra(); return; }
+      executar({ u: sel, a: 'mover', para: pendMov.para });
+    };
+    if (el('bbVoltar')) el('bbVoltar').onclick = function () { pendMov = visMov = null; tipoAcao = null; desenhar(); };
+    // posição: perto da peça, escolhendo entre acima, abaixo e deslocada para os lados a que menos cobre
+    // outras unidades (os alvos precisam ficar tocáveis), sempre dentro do tabuleiro
+    const svg = el('tabuleiro'), ctm = svg.getScreenCTM();
+    if (!ctm) return;
+    const pos = pendMov ? pendMov.para : [su.q, su.r], p = px(pos[0], pos[1]);
+    const wr = wrap.getBoundingClientRect(), x = ctm.a * p[0] + ctm.e - wr.left, y = ctm.d * p[1] + ctm.f - wr.top, off = 30 * ctm.d;
+    const bw = b.offsetWidth, bh = b.offsetHeight;
+    const sr = svg.getBoundingClientRect(), X0 = sr.left - wr.left + 4, X1 = sr.right - wr.left - bw - 4, Y0 = sr.top - wr.top + 4, Y1 = sr.bottom - wr.top - bh - 4;
+    const outros = [];
+    svg.querySelectorAll('g.un').forEach(function (g) {
+      const r = g.getBoundingClientRect();
+      outros.push([r.left - wr.left - 4, r.top - wr.top - 4, r.right - wr.left + 4, r.bottom - wr.top + 4]);
+    });
+    // casas verdes de movimento também contam, com peso menor
+    const verdes = [];
+    svg.querySelectorAll('polygon.hex.dest').forEach(function (g) {
+      const r = g.getBoundingClientRect();
+      verdes.push([r.left - wr.left, r.top - wr.top, r.right - wr.left, r.bottom - wr.top]);
+    });
+    const cand = [];
+    [-1, 1].forEach(function (v) {   // v = -1: acima, 1: abaixo
+      [0, -1, 1, -2, 2].forEach(function (hx) {   // centrada e deslocada para os lados
+        const cx = x + hx * (bw / 2 + 24 * ctm.d);
+        const L = Math.max(X0, Math.min(X1, cx - bw / 2));
+        const T = v < 0 ? y - off - bh : y + off;
+        cand.push({ L: L, T: Math.max(Y0, Math.min(Y1, T)), pen: Math.abs(hx) * 0.5 + (v > 0 ? 0.25 : 0) });
+      });
+    });
+    // varredura: qualquer posição livre do tabuleiro, preferindo a mais próxima da peça
+    for (let T = Y0; T <= Y1; T += 20) for (let L = X0; L <= X1; L += 20)
+      cand.push({ L: L, T: T, pen: 0.05 * Math.hypot(L + bw / 2 - x, T + bh / 2 - y) + 3 });
+    cand.forEach(function (c) {
+      let cob = 0;
+      outros.forEach(function (o) {
+        const w = Math.min(c.L + bw, o[2]) - Math.max(c.L, o[0]), h = Math.min(c.T + bh, o[3]) - Math.max(c.T, o[1]);
+        if (w > 0 && h > 0) cob += w * h * 20;
+      });
+      verdes.forEach(function (o) {
+        const w = Math.min(c.L + bw, o[2]) - Math.max(c.L, o[0]), h = Math.min(c.T + bh, o[3]) - Math.max(c.T, o[1]);
+        if (w > 0 && h > 0) cob += w * h * 0.005;
+      });
+      c.score = cob + c.pen;
+    });
+    cand.sort(function (a, b) { return a.score - b.score; });
+    b.style.transform = 'none'; b.style.left = cand[0].L + 'px'; b.style.top = cand[0].T + 'px';
+  }
+
+  /* ---------------------------------------------------------- desenho */
+  function px(q, r) {
+    const s = girado() ? -1 : 1;
+    return [s * TAM * SQ3 * (q + r / 2), s * TAM * 1.5 * r];
+  }
+  function hexPontos(cx, cy, t) {
+    const p = [];
+    for (let i = 0; i < 6; i++) {
+      const a = Math.PI / 180 * (60 * i - 30);
+      p.push((cx + t * Math.cos(a)).toFixed(1) + ',' + (cy + t * Math.sin(a)).toFixed(1));
+    }
+    return p.join(' ');
+  }
+
+  function desenhar() {
+    desenharTabuleiro();
+    desenharLateral();
+    desenharBarra();
+  }
+
+  // Alcance de uma unidade inimiga (só consulta): casas que ela ataca sem mover, casas que ela
+  // alcança andando e, no modo mover e agir, as casas que ela ameaça depois de andar.
+  function alcancesDe(id) {
+    const u = unidade(id), cat = CAT[u.tipo], mef = M.mapaEfetivo(jogo);
+    const occ = {}; jogo.unidades.forEach(function (x) { occ[chave(x.q, x.r)] = true; });
+    const mov = {}, dests = [];
+    if (cat.mov > 0 && !u.preso) M.destinosMover(jogo, id).forEach(function (p) { mov[chave(p[0], p[1])] = true; dests.push(p); });
+    const atq = {}, ameaca = {};
+    M.alcanceAtaque(jogo, id).forEach(function (c) { atq[chave(c[0], c[1])] = true; });
+    if (M.CATALOGO.moverEAgir.ativo) dests.forEach(function (p) {
+      const cl = JSON.parse(JSON.stringify(jogo)), x = cl.unidades.find(function (y) { return y.id === id; });
+      x.q = p[0]; x.r = p[1];
+      M.alcanceAtaque(cl, id).forEach(function (c) { const k = chave(c[0], c[1]); if (!atq[k]) ameaca[k] = true; });
+    });
+    return { mov: mov, atq: atq, ameaca: ameaca };
+  }
+
+  function desenharTabuleiro() {
+    const mef = M.mapaEfetivo(jogo), alvo = destaques(), prev = M.previsaoContracao(jogo);
+    const avisa = {};
+    if (prev && prev.faltam <= 4) prev.caem.forEach(function (c) { avisa[chave(c[0], c[1])] = prev.faltam <= 2 ? 2 : 1; });
+    const ult = {};
+    ultimoEv.forEach(function (ev) { if (ev.de) ult[chave(ev.de[0], ev.de[1])] = true; });
+    const vez = turnoHumano();
+    const alc = {};
+    let dicaMira = {}, insA = null;
+    if (insp && unidade(insp)) insA = alcancesDe(insp);
+    if (sel && pendMov) {   // já andou: o alcance (tracejado vermelho) vale a partir da casa nova
+      const cl = JSON.parse(JSON.stringify(jogo)), uc = cl.unidades.find(function (x) { return x.id === sel; });
+      uc.q = pendMov.para[0]; uc.r = pendMov.para[1];
+      M.alcanceAtaque(cl, sel).forEach(function (c) { alc[chave(c[0], c[1])] = true; });
+    } else if (sel) {
+      M.alcanceAtaque(jogo, sel).forEach(function (c) { alc[chave(c[0], c[1])] = true; });
+      // mover e agir: pontinho vermelho nas casas verdes de onde ainda dá para atacar/usar a habilidade
+      if (M.CATALOGO.moverEAgir.ativo && !tipoAcao)
+        acoesDe(sel).forEach(function (a) { if (composta(a)) dicaMira[chave(a.para[0], a.para[1])] = true; });
+    }
+    let s = '';
+    const zona = {};
+    if (sel && tipoAcao === 'area' && unidade(sel)) {
+      const su = unidade(sel), c0 = pendMov ? pendMov.para : [su.q, su.r], rz = M.CATALOGO.mana.raio;
+      for (let q = -RAIO_BASE; q <= RAIO_BASE; q++) for (let r = -RAIO_BASE; r <= RAIO_BASE; r++)
+        if (Math.abs(q + r) <= RAIO_BASE && M.dist(c0[0], c0[1], q, r) <= rz && M.dentro(mef, q, r)) zona[chave(q, r)] = true;
+    }
+    const celulas = [];
+    for (let q = -RAIO_BASE; q <= RAIO_BASE; q++) for (let r = -RAIO_BASE; r <= RAIO_BASE; r++)
+      if (Math.abs(q + r) <= RAIO_BASE) celulas.push([q, r]);
+
+    celulas.forEach(function (c) {
+      const q = c[0], r = c[1], k = chave(q, r), p = px(q, r);
+      let cls = 'hex';
+      if (!M.dentro(mef, q, r) || mef.obs.has(k) && !MAPA_BASE_OBS[k]) cls += ' caida';
+      else if (mef.obs.has(k)) cls += ' obs';
+      if (alvo[k] === 'dest' || destPrev === k) cls += ' dest';
+      else if (vez && !pendMov) cls += ' pode';
+      s += '<polygon class="' + cls + '" data-q="' + q + '" data-r="' + r + '" points="' + hexPontos(p[0], p[1], TAM * 0.97) + '"/>';
+      if (dicaMira[k]) s += '<circle class="mira" cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="4"/>';
+      if (insA) {
+        if (insA.ameaca[k]) s += '<polygon class="ameaca" points="' + hexPontos(p[0], p[1], TAM * 0.9) + '"/>';
+        if (insA.mov[k]) s += '<polygon class="alcmov" points="' + hexPontos(p[0], p[1], TAM * 0.8) + '"/>';
+        if (insA.atq[k]) s += '<polygon class="alcance" points="' + hexPontos(p[0], p[1], TAM * 0.7) + '"/>';
+      }
+      if (zona[k]) s += '<polygon class="zona" points="' + hexPontos(p[0], p[1], TAM * 0.9) + '"/>';
+      if (alc[k]) s += '<polygon class="alcance" points="' + hexPontos(p[0], p[1], TAM * 0.8) + '"/>';
+      if (cls.indexOf(' obs') >= 0) s += '<polygon class="obs-in" points="' + hexPontos(p[0], p[1], TAM * 0.55) + '"/>';
+      if (avisa[k]) s += '<polygon class="aviso' + (avisa[k] === 2 ? ' urgente' : '') + '" points="' + hexPontos(p[0], p[1], TAM * 0.86) + '"/>';
+      if (ult[k]) s += '<polygon class="marca ultimo" points="' + hexPontos(p[0], p[1], TAM * 0.7) + '"/>';
+    });
+
+    if (pendMov) { const o = unidade(pendMov.id), po = px(o.q, o.r); s += '<polygon class="marca ultimo" points="' + hexPontos(po[0], po[1], TAM * 0.7) + '"/>'; }
+    jogo.unidades.forEach(function (u) {
+      const pos = visMov && visMov.id === u.id ? visMov.para : [u.q, u.r];
+      const p = px(pos[0], pos[1]), k = chave(u.q, u.r), minha = vez && !pendMov && u.dono === jogo.jogador && tiposDe(u.id).length > 0;
+      const cor = u.dono === 0 ? 'var(--p1)' : 'var(--p2)', rr = 17;
+      s += '<g class="un' + (minha ? ' minha' : '') + '" data-id="' + u.id + '" data-q="' + pos[0] + '" data-r="' + pos[1] + '" transform="translate(' + p[0].toFixed(1) + ',' + p[1].toFixed(1) + ')">';
+      if (alvo[k] && alvo[k] !== 'dest') s += '<circle class="marca ' + alvo[k] + '" r="' + (rr + 6) + '"/>';
+      if (insp === u.id) s += '<circle class="marca mov" r="' + (rr + 6) + '" style="stroke:#7aa2ff"/>';
+      if (sel === u.id || selIA === u.id) s += '<circle class="marca sel" r="' + (rr + 6) + '"/>';
+      s += u.dono === 0
+        ? '<circle r="' + rr + '" fill="' + cor + '" stroke="#0b0d11" stroke-width="2"/>'
+        : '<rect x="' + (-rr) + '" y="' + (-rr) + '" width="' + (2 * rr) + '" height="' + (2 * rr) + '" rx="5" fill="' + cor + '" stroke="#0b0d11" stroke-width="2"/>';
+      if (piscar[u.id]) s += '<circle class="flash ' + (piscar[u.id] === 'atq' ? '' : piscar[u.id]) + '" r="' + (rr + 6) + '"/>';
+      s += '<title>' + CAT[u.tipo].nome + ' (' + COR[u.dono].toLowerCase() + '), ' + u.pv + '/' + CAT[u.tipo].pvMax + ' PV' + (u.imune ? ', imune a Prender' : '') + (u.preso ? ', preso (não pode mover)' : '') + '</title>' + icone(u.tipo, 0, 0, 22);
+      if (u.preso) s += '<circle r="' + (rr + 3) + '" fill="none" stroke="var(--hab)" stroke-width="3" stroke-dasharray="4 3"/>';
+      if (u.mana !== undefined && M.CATALOGO.mana) {
+        const mm = M.CATALOGO.mana.max;
+        for (let i = 0; i < mm; i++) s += '<rect class="mp' + (i < u.mana ? '' : ' vazio') + '" x="' + (-(mm * 7) / 2 + i * 7 + 1) + '" y="' + (-rr - 12) + '" width="5.5" height="5.5" rx="1"/>';
+      }
+      const max = CAT[u.tipo].pvMax, w = 6, x0 = -((max - 1) * w) / 2;
+      for (let i = 0; i < max; i++) s += '<circle class="pip' + (i < u.pv ? '' : ' vazio') + '" cx="' + (x0 + i * w) + '" cy="' + (rr + 7) + '" r="2.3"/>';
+      s += '</g>';
+    });
+    el('tabuleiro').innerHTML = s;
+  }
+
+  // Obstáculos fixos do mapa base (para distinguir de casas caídas)
+  const MAPA_BASE_OBS = {};
+  M.MAPAS['hex5'].obstaculos.forEach(function (o) { MAPA_BASE_OBS[chave(o[0], o[1])] = true; });
+
+  function desenharLateral() {
+    // turno
+    const j = jogo.jogador;
+    let vez;
+    if (jogo.resultado) vez = jogo.resultado.vencedor === null ? 'Empate' : 'Venceu: <span class="p' + (jogo.resultado.vencedor + 1) + '">' + COR[jogo.resultado.vencedor] + '</span>';
+    else if (pensando || (animando && !ehHumano(j))) vez = '<span class="p' + (j + 1) + '">' + COR[j] + '</span> (IA) jogando…';
+    else vez = 'Vez do <span class="p' + (j + 1) + '">' + COR[j] + '</span>' + (modo !== '2j' && j === humano ? ' (você)' : '');
+    el('vez').innerHTML = vez;
+
+    // contração
+    const prev = M.previsaoContracao(jogo), c = el('contracao');
+    c.className = '';
+    if (jogo.resultado) c.textContent = '';
+    else if (prev) {
+      const f = prev.faltam;
+      c.textContent = 'Sem dano há ' + jogo.semProgresso + ' meio-turno(s). Contração em ' + f + (f === 1 ? ' (na próxima jogada).' : '.') + ' Qualquer dano reinicia a contagem.';
+      if (f <= 4) c.className = 'alerta';
+    } else c.textContent = 'Tabuleiro no menor tamanho. Sem dano há ' + jogo.semProgresso + '/30 meios-turnos (empate aos 30).';
+
+    // unidade selecionada
+    const pu = el('painelUnidade');
+    if (turnoHumano() && legais.length === 1 && legais[0].a === 'passe') {
+      pu.innerHTML = '<h2>Sem jogadas</h2><p class="desc">Todas as suas unidades estão presas. Você precisa passar a vez.</p><button id="btPasse" class="principal">Passar a vez</button>';
+      el('btPasse').onclick = function () { executar({ a: 'passe' }); };
+    } else if (insp && unidade(insp) && !sel) {
+      const u = unidade(insp), cat = CAT[u.tipo];
+      pu.innerHTML = '<h2>' + cat.nome + ' (' + COR[u.dono].toLowerCase() + ') · ' + u.pv + '/' + cat.pvMax + ' PV' + (u.preso ? ' · preso' : u.imune ? ' · imune a Prender' : '') + '</h2><div class="desc">' + DESC[u.tipo] + '</div>' + linhaMana(u) + '<p class="desc" style="margin:8px 0 0">Movimento: ' + (cat.mov || 'não anda') + '. <span style="color:#7aa2ff">Contorno azul</span>: casas que ela alcança andando. <span style="color:var(--atq)">Tracejado vermelho</span>: casas que o ataque dela alcança sem mover.' + (M.CATALOGO.moverEAgir.ativo ? ' Vermelho suave: casas que ela ameaça depois de andar.' : '') + (u.preso ? ' Presa: não anda neste turno.' : '') + (cat.hab === 'investida' ? ' A Investida (até 3 casas em linha) não está desenhada.' : '') + ' Toque de novo na unidade para fechar.</p>';
+    } else if (sel && pendMov && unidade(sel)) {
+      // já andou: tocar no inimigo marcado ataca; habilidades e Terminar turno nos botões acima da peça
+      const u = unidade(sel), cat = CAT[u.tipo], ap = acoesApos(sel, pendMov.para);
+      const temAtq = ap.some(function (a) { return a.a === 'atacar'; });
+      const aj = M.CATALOGO.moverEAgir.ajusteAndar[u.tipo], cav = M.chegouCavando(jogo, sel, pendMov.para); let dano = aj !== undefined ? cat.atq.dano + aj : Math.max(1, cat.atq.dano - 1); if (cav) dano = cat.atq.dano;
+      pu.innerHTML = '<h2>' + cat.nome + ' · já andou</h2><p class="desc" style="margin:0">Use os botões acima da peça. Tracejado vermelho: alcance a partir da nova casa; toque no inimigo marcado para atacar.' + (temAtq ? ' Atacar depois de andar causa ' + dano + ' de dano (' + (dano > cat.atq.dano ? '1 a mais, pela corrida' : dano === cat.atq.dano ? (cav ? 'sem perda: atravessou obstáculo' : 'o dano base já é o mínimo') : '1 a menos') + ')' + (u.tipo === 'La' ? ', 4 se o alvo estiver encurralado' : '') + '. Atacar encerra o turno.' : '') + '</p>';
+    } else if (sel && unidade(sel)) {
+      const u = unidade(sel), tipos = tiposDe(sel), cat = CAT[u.tipo];
+      pu.innerHTML = '<h2>' + cat.nome + ' · ' + u.pv + '/' + cat.pvMax + ' PV' + (u.preso ? ' · preso' : u.imune ? ' · imune a Prender' : '') + '</h2><div class="desc">' + DESC[u.tipo] + '</div>' + linhaMana(u) + '<p class="desc" style="margin:8px 0 0"><b>Casas verdes:</b> toque para mover. <b>Tracejado vermelho:</b> toque no inimigo para atacar sem mover.' + (tipos.indexOf('atacar') < 0 ? ' <b>Nenhum inimigo no alcance agora.</b>' : '') + ' Habilidades ficam nos botões acima da peça. Toque numa casa sem ação para desmarcar.</p>' + (M.CATALOGO.moverEAgir.ativo ? '<p class="desc" style="margin:8px 0 0"><b>Mover e agir:</b> atacar parado causa dano normal. Casas com ponto vermelho permitem agir depois de andar (ataque com 1 de dano a menos; o Lanceiro causa 1 a mais). Nunca se anda depois de atacar.</p>' : '') + (u.preso ? '<p class="desc" style="margin:8px 0 0"><b>Preso:</b> não pode mover' + (u.tipo === 'Ba' ? ' nem usar a Investida' : '') + ' neste turno; ainda pode atacar' + (cat.hab && cat.hab !== 'investida' ? ' e usar a habilidade' : '') + '.</p>' : '');
+    } else if (turnoHumano()) {
+      pu.innerHTML = '<h2>Sua jogada</h2><p class="desc">Clique numa unidade sua para ver o que ela pode fazer. Uma unidade, uma ação por turno.</p>';
+    } else {
+      pu.innerHTML = '<h2>Aguarde</h2><p class="desc">' + (jogo.resultado ? 'Partida encerrada.' : modo === '2j' ? 'Resolvendo a jogada…' : 'A IA está jogando.') + '</p>';
+    }
+
+    // log e placar
+    el('log').innerHTML = log.length ? log.map(function (t) { return '<li>' + t.join('<br>') + '</li>'; }).join('') : '<li>Nenhuma jogada ainda.</li>';
+    el('btDesfazerJogada').disabled = !snapshots.length;
+    el('placar').textContent = 'Partidas: ' + stats.partidas + ' · Revanches: ' + stats.revanches;
+    atualizarDica();
+  }
+
+  /* ---------------------------------------------------------- janelas */
+  function fecharJanelas() { document.querySelectorAll('.veu').forEach(function (v) { v.classList.remove('aberto'); }); }
+  function abrir(id) { el(id).classList.add('aberto'); }
+
+  function mostrarFim() {
+    const r = jogo.resultado;
+    let titulo;
+    if (r.vencedor === null) titulo = 'Empate';
+    else if (modo !== '2j') titulo = r.vencedor === humano ? 'Você venceu' : 'A IA venceu';
+    else titulo = 'Venceu o ' + COR[r.vencedor];
+    el('fimTitulo').textContent = titulo;
+    el('fimTexto').textContent = MOTIVO[r.tipo] + ' (' + jogo.meioTurno + ' meios-turnos.)';
+    abrir('veuFim');
+    el('btRevanche').focus();
+  }
+
+  function exportar() {   // JSON da partida (usado no relatório)
+    el('expTexto').value = JSON.stringify({
+      motor: 'v4.2', catalogo: M.CATALOGO.versao, mapa: 'hex5', exercito: M.EXERCITO_V4, modo: modo, humano: humano,
+      regras: { moverEAgir: M.CATALOGO.moverEAgir.ativo ? M.CATALOGO.moverEAgir.bonus : false, escalaPV: M.CATALOGO.escalaPV, mana: M.CATALOGO.mana, danoBa: CAT.Ba.atq.dano, danoAt: CAT.At.atq.dano },
+      acoes: acoes, resultado: jogo.resultado, meiosTurnos: jogo.meioTurno, sessao: stats
+    });
+    return el('expTexto').value;
+  }
+
+
+  /* ---------------------------------------------------------- v4.2: guia, dicas, unidades, relatório */
+  function registrarPartida() {
+    const r = jogo.resultado;
+    stats.hist.push({ modo: modo, lado: modo === '2j' ? null : humano, res: r.vencedor === null ? 'E' : (modo === '2j' ? 'J' + (r.vencedor + 1) : (r.vencedor === humano ? 'V' : 'D')), fim: r.tipo, meios: jogo.meioTurno, t: new Date().toISOString().slice(0, 16) });
+    if (stats.hist.length > 40) stats.hist.shift();
+  }
+  const GUIA = [
+    ['1. Objetivo', '<p>Deixe o adversário <b>sem unidades que se movem</b> (ou sem nenhuma jogada possível). Vocês alternam turnos e jogam sempre com <b>uma unidade por turno</b>. Não existe sorte: o dano é sempre o mesmo.</p><p>Azul joga com <b>círculos</b> e Laranja com <b>quadrados</b>. Contra a IA, as suas unidades ficam sempre embaixo. Os pontinhos sob cada peça são os PV (pontos de vida) restantes.</p>'],
+    ['2. Mover', '<p>Toque numa unidade sua. As casas <span class="amostra verde"></span><b>verdes</b> mostram onde ela pode andar: toque numa delas para mover. Obstáculos (cinza) bloqueiam o caminho e os tiros em linha reta.</p><p>Toque numa casa sem ação para desmarcar a unidade.</p>'],
+    ['3. Atacar', '<p>O <span class="amostra verm"></span><b>tracejado vermelho</b> mostra o alcance de ataque. Se há um inimigo dentro, toque nele para atacar sem mover. Atacar encerra o turno.</p><p>Você também pode <b>andar e depois atacar</b>: depois de mover, aparecem botões acima da peça. O ataque depois de andar causa 1 de dano a menos. Se não quiser agir, toque em <b>Terminar</b>; <b>Voltar</b> desfaz o movimento.</p>'],
+    ['4. Habilidades', '<p>Algumas unidades têm habilidades nos botões acima da peça: <b>Prender</b> (o alvo fica sem mover; depois fica imune por um turno), <b>Repelir</b> (empurra), <b>Investida</b> (corrida de até 3 casas com ataque), <b>Curar</b> (mana: uma cura a cada 4 turnos).</p><p>Em <b>Unidades</b> (menu do topo) está a ficha completa de cada peça. Toque num inimigo fora do alcance para ver o alcance dele.</p>'],
+    ['5. O tabuleiro encolhe', '<p>Se ninguém causa dano por 16 meios-turnos, a borda externa cai: as casas aparecem <span class="amostra amar"></span><b>tracejadas em amarelo</b> antes. Depois disso a borda cai a cada 8 meios-turnos sem dano. Qualquer dano reinicia a contagem.</p><p>Isso força o encontro: ficar esperando não funciona por muito tempo.</p>'],
+    ['6. Dicas para a primeira partida', '<ul><li>Não deixe uma unidade frágil (Atirador, Emboscador) sozinha ao alcance de duas inimigas.</li><li>O <b>Tanque</b> aguenta dano e protege a frente. O <b>Batedor</b> cobre o tabuleiro todo.</li><li>Use <b>Desfazer jogada</b> à vontade enquanto aprende.</li></ul><p class="desc">Comece contra a IA fácil. Depois da partida, dê a nota: ela ajuda a decidir o rumo do jogo.</p>']
+  ];
+  let guiaI = 0;
+  function mostrarGuia(i) {
+    guiaI = Math.max(0, Math.min(GUIA.length - 1, i));
+    el('guiaTitulo').textContent = GUIA[guiaI][0];
+    el('guiaCorpo').innerHTML = GUIA[guiaI][1];
+    el('guiaPassos').innerHTML = GUIA.map(function (g, k) { return '<i class="' + (k === guiaI ? 'on' : '') + '"></i>'; }).join('');
+    el('btGuiaAnt').style.visibility = guiaI === 0 ? 'hidden' : 'visible';
+    el('btGuiaProx').textContent = guiaI === GUIA.length - 1 ? 'Jogar' : 'Próximo';
+  }
+  function abrirGuia() { fecharJanelas(); mostrarGuia(0); abrir('veuGuia'); }
+  function fecharGuia() { fecharJanelas(); if (!stats.guia) { stats.guia = true; gravarStats(); } }
+
+  const FORMA = { adj: 'adjacente', linha: 'em linha', arco: 'em arco' };
+  function fichaAlcance(c) {
+    const a = c.atq, rng = a.min === a.max ? a.min : a.min + ' a ' + a.max;
+    return FORMA[a.forma] + (a.forma === 'adj' ? '' : ', ' + rng + ' casa' + (a.max > 1 ? 's' : ''));
+  }
+  function montarUnidades() {
+    const ordem = ['Se', 'Be', 'Ba', 'La', 'En', 'Re', 'Mi'];
+    el('gradeUnidades').innerHTML = ordem.map(function (t) {
+      const c = CAT[t];
+      return '<div class="ficha"><svg viewBox="0 0 24 24" aria-hidden="true"><g class="ico">' + ICONES[t] + '</g></svg><div><h3>' + c.nome + '</h3><div class="nums">PV <b>' + c.pvMax + '</b> · Mov. <b>' + c.mov + '</b> · Dano <b>' + c.atq.dano + '</b> · Alcance <b>' + fichaAlcance(c) + '</b></div><p>' + DESC[t] + '</p></div></div>';
+    }).join('');
+  }
+
+  // Dicas contextuais: só nas primeiras partidas, e o jogador pode ocultá-las.
+  function atualizarDica() {
+    const d = el('dica');
+    if (!d) return;
+    if (!stats.dicas || stats.partidas >= 2 || jogo.resultado || !turnoHumano()) { d.hidden = true; return; }
+    let t;
+    if (sel && pendMov) t = 'Você andou. Toque num inimigo marcado em vermelho para atacar, use um botão acima da peça, ou toque em <b>Terminar</b>.';
+    else if (sel) t = 'Casas <b>verdes</b>: andar. Inimigo no <b>tracejado vermelho</b>: toque nele para atacar. Toque numa casa sem ação para desmarcar.';
+    else t = 'Toque numa unidade sua. Veja o <b>Guia</b> no topo se tiver dúvida.';
+    d.innerHTML = t + '<br><button id="btOcultarDicas">Ocultar dicas</button>';
+    d.hidden = false;
+    el('btOcultarDicas').onclick = function () { stats.dicas = false; gravarStats(); d.hidden = true; };
+  }
+
+  // Avaliação ao fim da partida (opcional): 1 a 5.
+  const nota = { div: 0, cla: 0 };
+  function montarNotas() {
+    ['Div', 'Cla'].forEach(function (k) {
+      let h = '';
+      for (let n = 1; n <= 5; n++) h += '<button data-k="' + k.toLowerCase() + '" data-n="' + n + '">' + n + '</button>';
+      el('nota' + k).innerHTML = h;
+    });
+    document.querySelectorAll('#avalFim button').forEach(function (b) {
+      b.onclick = function () {
+        nota[b.dataset.k] = +b.dataset.n;
+        document.querySelectorAll('#avalFim button[data-k="' + b.dataset.k + '"]').forEach(function (x) { x.classList.toggle('ativo', x === b); });
+        const h = stats.hist[stats.hist.length - 1]; if (h) { h.div = nota.div || undefined; h.cla = nota.cla || undefined; gravarStats(); }
+      };
+    });
+  }
+  function zerarNotas() { nota.div = nota.cla = 0; document.querySelectorAll('#avalFim button').forEach(function (x) { x.classList.remove('ativo'); }); }
+
+  function textoRelatorio() {
+    const h = stats.hist, cont = function (f) { return h.filter(f).length; };
+    const media = function (k) { const v = h.map(function (x) { return x[k]; }).filter(Boolean); return v.length ? (v.reduce(function (a, b) { return a + b; }, 0) / v.length).toFixed(1) + ' (' + v.length + ')' : 'sem nota'; };
+    const l = [];
+    l.push('RELATÓRIO TAO Reborn v4.2 beta · testador ' + stats.id);
+    l.push('Aparelho: ' + (/iPad|Tablet|Android(?!.*Mobile)/i.test(navigator.userAgent) ? 'tablet' : /Mobi|iPhone|Android/i.test(navigator.userAgent) ? 'celular' : 'computador') + ' · tela ' + screen.width + 'x' + screen.height + ' · ' + new Date().toISOString().slice(0, 16));
+    l.push('Partidas: ' + stats.partidas + ' · Revanches pedidas: ' + stats.revanches + ' · Guia lido: ' + (stats.guia ? 'sim' : 'não'));
+    l.push('Contra a IA: ' + cont(function (x) { return x.res === 'V'; }) + ' vitórias, ' + cont(function (x) { return x.res === 'D'; }) + ' derrotas, ' + cont(function (x) { return x.res === 'E'; }) + ' empates · mesma tela: ' + cont(function (x) { return /^J/.test(x.res); }));
+    l.push('Nota diversão (média): ' + media('div') + ' · Nota regras claras (média): ' + media('cla'));
+    l.push('Partidas: ' + h.map(function (x) { return (x.modo === 'ia1' ? 'IAf' : x.modo === 'ia2' ? 'IAd' : '2J') + ':' + x.res + ':' + x.meios + (x.div ? ':d' + x.div + 'c' + (x.cla || '-') : ''); }).join(' | '));
+    const c = (el('relComentario').value || '').trim();
+    l.push('Comentário: ' + (c || '(nenhum)'));
+    if (jogo && acoes.length) l.push('--- última partida (JSON) ---\n' + exportar());
+    return l.join('\n');
+  }
+  function abrirRelatorio() { fecharJanelas(); el('relTexto').value = textoRelatorio(); el('btRelCopiar').textContent = 'Copiar relatório'; abrir('veuRelatorio'); }
+
+
+  /* ---------------------------------------------------------- laboratório de efeitos (?lab=1) */
+  let LAB = /[?&]lab=1/.test(location.search);   // também liga com 5 toques no título (tablet sem querystring)
+  const labPts = { ca: [-1, 2], cb: [1, -1] };   // A e B são calculados na hora (px depende do lado girado)
+  Object.defineProperty(labPts, 'A', { get: function () { return px(labPts.ca[0], labPts.ca[1]); } });
+  Object.defineProperty(labPts, 'B', { get: function () { return px(labPts.cb[0], labPts.cb[1]); } });
+  function labMarcar() {
+    el('tabuleiro').querySelectorAll('.labmk').forEach(function (n) { n.remove(); });
+    [['A', labPts.A], ['B', labPts.B]].forEach(function (x) {
+      const g = nv(null, 'g', { transform: 'translate(' + x[1][0].toFixed(1) + ',' + x[1][1].toFixed(1) + ')', 'class': 'labmk' });
+      nv(g, 'circle', { r: 9, fill: 'rgba(255,255,255,.12)', 'stroke-width': 1.5, 'stroke-dasharray': '3 2' }, { stroke: '#fff' });
+      const t = nv(g, 'text', { y: 4, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700 }, { fill: '#fff' }); t.textContent = x[0];
+    });
+    el('labPts').textContent = 'A = origem (' + labPts.ca + ')  ·  B = alvo (' + labPts.cb + ')';
+  }
+  let labProx = 'A';
+  function labPonto(q, r) {
+    labPts[labProx === 'A' ? 'ca' : 'cb'] = [q, r];
+    labProx = labProx === 'A' ? 'B' : 'A'; labMarcar();
+  }
+  function iniciarLab() {
+    if (el('labPainel')) return; LAB = true;
+    const EFS = [
+      ['Tiro (Atirador)', function () { FX.tiro(labPts.A, labPts.B); depois(150, function () { FX.impacto(labPts.B, +el('labDano').value); }); }],
+      ['Lança (Lanceiro)', function () { FX.lanca(labPts.A, labPts.B); depois(110, function () { FX.impacto(labPts.B, +el('labDano').value); }); }],
+      ['Arco (Emboscador)', function () { FX.arco(labPts.A, labPts.B); depois(210, function () { FX.impacto(labPts.B, 1); }); }],
+      ['Prender (teia)', function () { FX.arco(labPts.A, labPts.B, '#c58bff'); depois(200, function () { FX.teia(labPts.B); }); }],
+      ['Impacto', function () { FX.impacto(labPts.B, +el('labDano').value); }],
+      ['Cura em um aliado', function () { FX.cura(labPts.B, false); }],
+      ['Cura em área', function () { FX.cura(labPts.A, true); }],
+      ['Repelir (onda)', function () { FX.onda(labPts.A, labPts.B); }],
+      ['Investida (rastro)', function () { FX.rastro(labPts.A, labPts.B); }],
+      ['Escavar (terra)', function () { FX.terra(labPts.A); depois(160, function () { FX.terra(labPts.B); }); }],
+      ['Eliminação', function () { FX.morte(labPts.B); }]
+    ];
+    const p = document.createElement('div'); p.className = 'caixa'; p.id = 'labPainel';
+    p.innerHTML = '<h2>Laboratório de efeitos</h2><p class="desc" id="labPts"></p><p class="desc" style="margin:4px 0">Toque em duas casas do tabuleiro para definir A (origem) e B (alvo), alternando.</p>' +
+      '<div class="modos" id="labBot"></div>' +
+      '<label class="desc">Duração x <span id="labEscV">1,0</span> <input id="labEsc" type="range" min="0.5" max="3" step="0.25" value="1"></label><br>' +
+      '<label class="desc">Dano mostrado <select id="labDano"><option>1</option><option selected>2</option><option>3</option><option>4</option></select></label>' +
+      '<p class="desc" style="margin:6px 0 0">Efeito ligado por padrão em partidas: tiro, lança, arco, teia, impacto, cura, onda, rastro, terra e eliminação. Anote o que melhorar.</p>';
+    document.querySelector('.lateral').prepend(p);
+    EFS.forEach(function (e) { const b = document.createElement('button'); b.textContent = e[0]; b.onclick = function () { e[1](); }; el('labBot').appendChild(b); });
+    el('labEsc').oninput = function () { escFx = +el('labEsc').value; el('labEscV').textContent = escFx.toFixed(1).replace('.', ','); };
+    stats.visto = true; el('selModo').value = '2j'; aoMudarModo(); labMarcar();
+  }
+
+  /* ---------------------------------------------------------- ligações */
+  el('tabuleiro').addEventListener('click', function (ev) {
+    const alvo = ev.target.closest('[data-q]');
+    if (LAB) { if (alvo) labPonto(+alvo.dataset.q, +alvo.dataset.r); return; }
+    if (alvo) clicar(+alvo.dataset.q, +alvo.dataset.r);
+  });
+  function aoMudarModo() {
+    modo = el('selModo').value; humano = +el('selLado').value;
+    const ia = modo !== '2j';
+    ['selLado', 'rotLado', 'selRitmo', 'rotRitmo'].forEach(function (id) { el(id).style.display = ia ? '' : 'none'; });
+    novaPartida();
+  }
+  el('selModo').onchange = aoMudarModo;
+  el('selLado').onchange = aoMudarModo;
+  function aoMudarRitmo() { ritmo = /[?&]ritmo=0/.test(location.search) ? 0 : +el('selRitmo').value; }
+  el('selRitmo').onchange = aoMudarRitmo;
+  aoMudarRitmo();
+  el('btNova').onclick = function () { zerarNotas(); novaPartida(); };
+  el('btDesfazerJogada').onclick = desfazer;
+  window.addEventListener('resize', function () { if (jogo) desenharBarra(); });
+  el('btRegras').onclick = function () { abrir('veuRegras'); };
+  el('btRegrasOk').onclick = fecharJanelas;
+  el('btFechar').onclick = fecharJanelas;
+  el('btRevanche').onclick = function () {
+    stats.revanches++; gravarStats(); zerarNotas();
+    if (modo !== '2j') { humano = 1 - humano; el('selLado').value = String(humano); }   // troca de lado na revanche
+    novaPartida();
+  };
+  el('btGuia').onclick = abrirGuia;
+  el('btUnidades').onclick = function () { fecharJanelas(); montarUnidades(); abrir('veuUnidades'); };
+  el('btUnOk').onclick = fecharJanelas;
+  el('btRelatorio').onclick = abrirRelatorio;
+  el('btRelFechar').onclick = fecharJanelas;
+  el('relComentario').oninput = function () { el('relTexto').value = textoRelatorio(); };
+  el('btRelCopiar').onclick = function () {
+    const t = el('relTexto'); t.value = textoRelatorio(); t.select();
+    let ok = false;
+    try { if (navigator.clipboard) { navigator.clipboard.writeText(t.value); ok = true; } } catch (x) { /* tenta o método antigo */ }
+    if (!ok) { try { ok = document.execCommand('copy'); } catch (x) { /* o texto está selecionado para cópia manual */ } }
+    el('btRelCopiar').textContent = ok ? 'Copiado' : 'Selecionado: copie manualmente';
+  };
+  el('btGuiaAnt').onclick = function () { mostrarGuia(guiaI - 1); };
+  el('btGuiaProx').onclick = function () { if (guiaI >= GUIA.length - 1) { fecharGuia(); } else mostrarGuia(guiaI + 1); };
+  el('btBvGuia').onclick = function () { stats.visto = true; gravarStats(); abrirGuia(); };
+  el('btBvJogar').onclick = function () { stats.visto = true; gravarStats(); el('selModo').value = 'ia1'; aoMudarModo(); };
+  document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') fecharJanelas(); });
+
+  (function () { let n = 0, t0 = 0; document.querySelector('header h1').addEventListener('click', function () { const agora = Date.now(); n = agora - t0 < 1500 ? n + 1 : 1; t0 = agora; if (n >= 5 && !LAB) { n = 0; fecharJanelas(); iniciarLab(); } }); })();
+  lerStats(); montarNotas();
+  aoMudarModo();
+  if (LAB) iniciarLab(); else if (!stats.visto) abrir('veuBemVindo');   // primeira visita: boas-vindas com guia; depois o jogo abre direto
+  window.TAO = { atualizar: atualizar, desfazer: desfazer, clicar: clicar, M: M, estado: function () { return jogo; }, executar: executar, pendente: function () { return pendMov !== null; } };   // gancho para testes
+})();
+</script>
+</body>
+</html>
