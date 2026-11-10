@@ -288,7 +288,7 @@
       <li><b>Seu turno:</b> escolha <b>uma</b> unidade. Ela pode andar e depois atacar ou usar a habilidade, só andar, ou só agir. Nunca se anda depois de atacar: o ataque encerra o turno.</li>
       <li><b>Dano ao andar e atacar:</b> 1 a menos que o normal (mínimo 1). Atacar parado causa dano normal. Exceções: o <b>Lanceiro</b> causa 1 a mais (lança em corrida) e o <b>Mineiro</b> mantém o dano cheio se o movimento atravessou um obstáculo. Investida e habilidades não mudam.</li>
       <li><b>Sem sorte:</b> o dano é fixo e toda a informação está na tela.</li>
-      <li><b>Contração:</b> se ninguém causa dano por um tempo, as casas da borda caem (aparecem tracejadas em amarelo antes). A primeira contração só acontece após <b>16 meios-turnos sem dano</b> (8 turnos de cada um), o que dá tempo para posicionar o ataque; as seguintes, após 8. Unidades sobre casas que caem são deslocadas sem dano. Qualquer dano reinicia a contagem.</li>
+      <li><b>Contração:</b> se ninguém causa dano por um tempo, as casas da borda caem (aparecem tracejadas em amarelo antes). Nos <b>16 primeiros meios-turnos</b> (8 jogadas de cada um) nada cai, com ou sem dano: é o tempo para posicionar o ataque. Depois disso, a borda cai após <b>8 meios-turnos sem dano</b>, e a cada 8 sem dano nas seguintes. Unidades sobre casas que caem são deslocadas sem dano. Qualquer dano reinicia a contagem.</li>
       <li><b>Prender:</b> o alvo não pode se mover até o fim do próximo turno do dono dele. Ao ficar livre, a unidade fica <b>imune a novo Prender</b> até o fim do turno seguinte dela: ninguém trava a mesma unidade em turnos seguidos. Se todas as suas unidades estiverem presas, você passa a vez.</li>
       <li><b>Remendador:</b> cada cura custa a mana cheia (4). Ele começa cheio e ganha 1 por turno seu. Escolha na hora: 3 PV em um aliado adjacente, ou 1 PV em área (ele e os aliados a até 2 casas).</li>
       <li><b>Empate:</b> a mesma posição três vezes, ou 30 meios-turnos sem dano com o tabuleiro já no menor tamanho.</li>
@@ -471,7 +471,7 @@
     Object.keys(DANO_BASE).forEach(function (t) { CAT[t].atq.dano = DANO_BASE[t]; });
     CATALOGO.mana = null;
     delete CATALOGO.contracao.acel;
-    delete CATALOGO.contracao.N1;
+    delete CATALOGO.contracao.N1; delete CATALOGO.contracao.livre;
     CATALOGO.imunidadePrender = false;
     CAT.Be.atq.max = ALC_BASE_BE; delete CAT.Be.atq.sobreObst;
   }
@@ -490,7 +490,7 @@
     CATALOGO.imunidadePrender = true;   // D-39: quem acabou de ser preso não pode ser preso de novo até o fim do seu próximo turno
     // D-44: Atirador com alcance 2 a 5; pode atirar por cima de obstáculo, mas o alcance máximo cai 2 casas naquela linha
     CAT.Be.atq.max = ALC_BASE_BE + 1; CAT.Be.atq.sobreObst = 2;
-    CATALOGO.contracao.N1 = 16;   // D-37: o anel externo só cai após 16 meios-turnos sem dano; depois vale N (8)
+    CATALOGO.contracao.livre = 16;   // D-49: nos 16 primeiros meios-turnos nada cai, com ou sem dano; depois vale N (8) sem dano, contados a partir do 17º
   }
   function regrasLegado() {
     const R = CATALOGO.moverEAgir; R.ativo = false; R.bonus = 'C'; R.ajusteAndar = {};
@@ -907,12 +907,22 @@
     return e.meioTurno >= c.acel.t ? c.acel.N : c.acel.N1;
   }
 
+  // D-49: contador efetivo da 1ª contração. Com `contracao.livre = L`, os L primeiros meios-turnos nunca
+  // contraem; a contagem de N meios-turnos sem dano só começa depois deles (vale o menor entre o contador de
+  // dano e os meios-turnos já decorridos depois de L). 'mt' = meios-turnos concluídos. Sem 'livre', é o contador de dano.
+  function semContrair(e, mt) {
+    const c = CATALOGO.contracao;
+    if (c.livre && !(e.anel > 0) && !(e.caidas && e.caidas.length)) return Math.min(e.semProgresso, mt - c.livre);
+    return e.semProgresso;
+  }
+
   function previsaoContracao(estado) {
     const cfg = CATALOGO.contracao;
     if (estado.resultado) return null;
     const fase2 = !!(estado.caidas && estado.caidas.length);
     const gatilho = fase2 ? cfg.NCelula : gatilhoFase1(estado);
-    if (!gatilho || (estado.semProgresso > gatilho && !cfg.acel)) return null;
+    const efet = semContrair(estado, estado.meioTurno);
+    if (!gatilho || (efet > gatilho && !cfg.acel)) return null;
     const copia = clonar(estado);
     const raio = mapaEfetivo(estado).raio;
     let caem = null, fase = 2;
@@ -924,7 +934,7 @@
       const ev = contrairCelula(copia);
       if (ev) caem = ev.caidas;
     }
-    return caem ? { gatilho: gatilho, faltam: gatilho - estado.semProgresso, caem: caem, fase: fase } : null;
+    return caem ? { gatilho: gatilho, faltam: gatilho - efet, caem: caem, fase: fase } : null;
   }
 
   function aplicar(estado, acao, opcoes) {
@@ -1076,7 +1086,8 @@
     const cfgC = CATALOGO.contracao;
     const fase2 = !!(e.caidas && e.caidas.length);
     const gatilho = fase2 ? cfgC.NCelula : gatilhoFase1(e);
-    if (!e.resultado && gatilho && (cfgC.acel ? e.semProgresso >= gatilho : e.semProgresso === gatilho)) {
+    const efet = semContrair(e, e.meioTurno + 1);   // este meio-turno ainda será contado abaixo
+    if (!e.resultado && gatilho && (cfgC.acel ? e.semProgresso >= gatilho : efet === gatilho)) {
       let c = fase2 ? null : contrair(e);
       if (!c && cfgC.celula) c = contrairCelula(e);
       if (c) { ev.push(c); e.semProgresso = 0; e.repeticoes = {}; }
@@ -1387,9 +1398,9 @@
       fim: 'Andar e atacar no mesmo turno custa 1 de dano, exceto o Mineiro quando atravessa uma pedra.'
     },
     {
-      id: 'contracao', nome: 'O chão cai', un: [['0Se', 0, -5], ['1Ba', 0, 5], ['1Re', 0, 3]], semProgresso: 14,
+      id: 'contracao', nome: 'O chão cai', un: [['0Se', 0, -5], ['1Ba', 0, 5], ['1Re', 0, 3]], semProgresso: 6, meioTurno: 22,
       passos: [
-        { texto: 'Há <b>14 turnos sem dano</b>. Aos 16, a borda do tabuleiro cai. As casas amarelas tracejadas vão cair. Leve o Tanque para dentro.',
+        { texto: 'O começo da partida já passou e há <b>6 meios-turnos sem dano</b>. Aos 8, a borda do tabuleiro cai. As casas amarelas tracejadas vão cair. Leve o Tanque para dentro.',
           esperado: { u: '0Se', a: 'mover', para: [0, -3] }, destaque: [[0, -3]],
           resposta: { u: '1Re', a: 'mover', para: [0, 2] } }
       ],
@@ -2165,6 +2176,10 @@
     if (jogo.resultado) c.textContent = '';
     else if (prev) {
       const f = prev.faltam;
+      const livre = M.CATALOGO.contracao.livre;
+      if (livre && !(jogo.anel > 0) && !(jogo.caidas && jogo.caidas.length) && jogo.meioTurno < livre) {
+        c.textContent = 'Início da partida: nada cai nos primeiros ' + livre + ' meios-turnos (faltam ' + (livre - jogo.meioTurno) + '). Depois, a borda cai após ' + prev.gatilho + ' meios-turnos sem dano.';
+      } else
       c.textContent = 'Sem dano há ' + jogo.semProgresso + ' meio-turno(s). Contração em ' + f + (f === 1 ? ' (na próxima jogada).' : '.') + ' Qualquer dano reinicia a contagem.';
       if (f <= 4) c.className = 'alerta';
     } else c.textContent = 'Tabuleiro no menor tamanho. Sem dano há ' + jogo.semProgresso + '/30 meios-turnos (empate aos 30).';
@@ -2236,7 +2251,7 @@
     ['2. Mover', '<p>Toque numa unidade sua. As casas <span class="amostra verde"></span><b>verdes</b> mostram onde ela pode andar: toque numa delas para mover. Obstáculos (cinza) bloqueiam o caminho e os tiros em linha reta.</p><p>Toque numa casa sem ação para desmarcar a unidade.</p>'],
     ['3. Atacar', '<p>O <span class="amostra verm"></span><b>tracejado vermelho</b> mostra o alcance de ataque. Se há um inimigo dentro, toque nele para atacar sem mover. Atacar encerra o turno.</p><p>Você também pode <b>andar e depois atacar</b>: depois de mover, aparecem botões acima da peça. O ataque depois de andar causa 1 de dano a menos. Se não quiser agir, toque em <b>Terminar</b>; <b>Voltar</b> desfaz o movimento.</p>'],
     ['4. Habilidades', '<p>Algumas unidades têm habilidades nos botões acima da peça: <b>Prender</b> (o alvo fica sem mover; depois fica imune por um turno), <b>Repelir</b> (empurra), <b>Investida</b> (corrida de até 3 casas com ataque), <b>Curar</b> (mana: uma cura a cada 4 turnos).</p><p>Em <b>Unidades</b> (menu do topo) está a ficha completa de cada peça. Toque num inimigo fora do alcance para ver o alcance dele.</p>'],
-    ['5. O tabuleiro encolhe', '<p>Se ninguém causa dano por 16 meios-turnos, a borda externa cai: as casas aparecem <span class="amostra amar"></span><b>tracejadas em amarelo</b> antes. Depois disso a borda cai a cada 8 meios-turnos sem dano. Qualquer dano reinicia a contagem.</p><p>Isso força o encontro: ficar esperando não funciona por muito tempo.</p>'],
+    ['5. O tabuleiro encolhe', '<p>Nos 16 primeiros meios-turnos nada cai. Depois, se ninguém causa dano por 8 meios-turnos, a borda externa cai: as casas aparecem <span class="amostra amar"></span><b>tracejadas em amarelo</b> antes. A borda volta a cair a cada 8 meios-turnos sem dano. Qualquer dano reinicia a contagem.</p><p>Isso força o encontro: ficar esperando não funciona por muito tempo.</p>'],
     ['6. Dicas para a primeira partida', '<ul><li>Não deixe uma unidade frágil (Atirador, Emboscador) sozinha ao alcance de duas inimigas.</li><li>O <b>Tanque</b> aguenta dano e protege a frente. O <b>Batedor</b> cobre o tabuleiro todo.</li><li>Use <b>Desfazer jogada</b> à vontade enquanto aprende.</li></ul><p class="desc">Comece contra a IA fácil. Depois da partida, dê a nota: ela ajuda a decidir o rumo do jogo.</p>']
   ];
   let guiaI = 0;
@@ -2328,7 +2343,7 @@
     jogo = M.novoJogo({ mapa: 'hex5', exercito: M.EXERCITO_V4 });
     const por = {}; jogo.unidades.forEach(function (u) { por[u.id] = u; });
     jogo.unidades = L.un.map(function (d) { const u = por[d[0]]; u.q = d[1]; u.r = d[2]; if (d[3]) u.pv = d[3]; return u; });
-    jogo.jogador = 0; if (L.semProgresso) jogo.semProgresso = L.semProgresso;
+    jogo.jogador = 0; if (L.semProgresso) jogo.semProgresso = L.semProgresso; if (L.meioTurno) jogo.meioTurno = L.meioTurno;
     modo = 'tut'; humano = 0;
     snapshots = []; acoes = []; log = []; ultimoEv = []; fimMostrado = false; confirmaTerm = false;
     sel = tipoAcao = passoInv = pendMov = insp = null;
