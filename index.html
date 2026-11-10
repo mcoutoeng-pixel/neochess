@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TAO Reborn · v4.2 arte (protótipo visual)</title>
+<title>NeoChess</title>
 <style>
   :root {
     --bg: #14171c; --painel: #1d222a; --linha: #2d343f; --texto: #e6e9ee; --suave: #9aa4b2;
@@ -153,7 +153,7 @@
 </head>
 <body>
 <header>
-  <h1>TAO Reborn <span style="color:var(--suave);font-weight:400">v4.2 · arte</span></h1>
+  <h1>NeoChess <span style="color:var(--suave);font-weight:400">v4.2</span></h1>
   <div class="grupo">
     <label for="selModo" class="desc">Modo</label>
     <select id="selModo">
@@ -225,7 +225,7 @@
 <textarea id="expTexto" hidden></textarea>
 <div class="veu" id="veuBemVindo" role="dialog" aria-modal="true" aria-labelledby="bvTitulo">
   <div class="janela">
-    <h2 id="bvTitulo">TAO Reborn</h2>
+    <h2 id="bvTitulo">NeoChess</h2>
     <p>Jogo tático de <b>1 contra 1, por turnos</b>, sem sorte: o dano é fixo e toda a informação está na tela. Você comanda 7 unidades diferentes num tabuleiro hexagonal e vence deixando o adversário sem unidades que se movem.</p>
     <p>Cada turno você escolhe <b>uma</b> unidade: ela anda e depois age (ataca ou usa uma habilidade). Uma partida dura de 5 a 10 minutos.</p>
     <p class="desc">Esta é uma versão de teste. Sua opinião ajuda a decidir o que o jogo vira: ao final de cada partida você pode dar uma nota, e o botão <b>Relatório</b> gera um resumo para me enviar.</p>
@@ -2300,7 +2300,7 @@
     const h = stats.hist, cont = function (f) { return h.filter(f).length; };
     const media = function (k) { const v = h.map(function (x) { return x[k]; }).filter(Boolean); return v.length ? (v.reduce(function (a, b) { return a + b; }, 0) / v.length).toFixed(1) + ' (' + v.length + ')' : 'sem nota'; };
     const l = [];
-    l.push('RELATÓRIO TAO Reborn v4.2 arte · testador ' + stats.id);
+    l.push('RELATÓRIO NeoChess v4.2 arte · testador ' + stats.id);
     l.push('Aparelho: ' + (/iPad|Tablet|Android(?!.*Mobile)/i.test(navigator.userAgent) ? 'tablet' : /Mobi|iPhone|Android/i.test(navigator.userAgent) ? 'celular' : 'computador') + ' · tela ' + screen.width + 'x' + screen.height + ' · ' + new Date().toISOString().slice(0, 16));
     l.push('Partidas: ' + stats.partidas + ' · Revanches pedidas: ' + stats.revanches + ' · Guia lido: ' + (stats.guia ? 'sim' : 'não'));
     l.push('Contra a IA: ' + cont(function (x) { return x.res === 'V'; }) + ' vitórias, ' + cont(function (x) { return x.res === 'D'; }) + ' derrotas, ' + cont(function (x) { return x.res === 'E'; }) + ' empates · mesma tela: ' + cont(function (x) { return /^J/.test(x.res); }));
