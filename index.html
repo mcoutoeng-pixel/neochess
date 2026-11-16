@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>NeoChess v6.6 (treino e tutorial, teste)</title>
+<title>NeoChess v6.8 (som, teste)</title>
 <style>
   :root {
     --bg: #14171c; --painel: #1d222a; --linha: #2d343f; --texto: #e6e9ee; --suave: #9aa4b2;
@@ -301,10 +301,11 @@
 </head>
 <body>
 <header>
-  <h1>NeoChess <span class="sub" style="color:var(--suave);font-weight:400">v6.6</span></h1>
+  <h1>NeoChess <span class="sub" style="color:var(--suave);font-weight:400">v6.8</span></h1>
   <div class="grupo">
     <button id="btMenu" class="principal" title="Menu: tutorial, guia, regras, unidades, nova partida">☰ Menu</button>
     <button id="btDesfazerJogada" disabled title="Desfazer a última jogada">↶ Desfazer</button>
+    <button id="btSom" title="Som ligado (toque para silenciar)">🔊</button>
     <button id="btTelaCheia" data-tela hidden>⛶ Tela cheia</button>
   </div>
 </header>
@@ -361,6 +362,9 @@
       <div class="linha" id="lnRitmo"><label for="selRitmo" id="rotRitmo">Ritmo</label><select id="selRitmo"><option value="1">Lento</option><option value="0.5">Normal</option></select></div>
       <button id="btNova" data-mn="nova" class="principal grande">Nova partida</button>
       <p class="desc" style="margin:6px 0 0">Joga com o último deck. Para mudar os heróis, use Editar deck.</p>
+    </div>
+    <div class="mnNova">
+      <div class="linha"><label for="selVol">Volume</label><input id="selVol" type="range" min="0" max="100" step="5" style="flex:1 1 auto;min-width:0"><button id="btSomTeste" type="button" title="Toca uma amostra dos sons">Ouvir</button></div>
     </div>
     <div class="mnGrade2">
       <button data-mn="deck">Editar deck</button><button id="btRelatorio" data-mn="relatorio">Relatório</button>
@@ -444,7 +448,7 @@
   </div>
 </div>
 
-<script>
+<script id="srcMotor">
 /* =============================================================================
  * motor.js  -  Motor de regras determinístico (especificação: 03-motor.md v1.0)
  *
@@ -1601,7 +1605,7 @@
 });
 
 </script>
-<script>
+<script id="srcIA">
 /* =============================================================================
  * ia.js  -  IAs simples sobre o motor (contrato: 03-motor.md seção 9)
  *
@@ -1904,7 +1908,7 @@
   };
 
   /* ---------------------------------------------------------- estado da interface */
-  let jogo = null, acoes = [], legais = [], ia = null, rng = null;
+  let jogo = null, acoes = [], legais = [], rng = null;
   let modo = 'ia1', humano = 0;
   let sel = null, tipoAcao = null, passoInv = null;   // seleção atual
   let pendMov = null;   // mover e agir: a unidade já andou {id, para}; falta atacar ou terminar o turno
@@ -1928,6 +1932,183 @@
   function lerStats() { try { const s = JSON.parse(localStorage.getItem('taoReborn61.stats')); if (s) stats = Object.assign(stats, s); } catch (x) { /* sem armazenamento */ } if (!stats.id) { stats.id = 'T' + Math.random().toString(36).slice(2, 7).toUpperCase(); gravarStats(); } }
   function gravarStats() { try { localStorage.setItem('taoReborn61.stats', JSON.stringify(stats)); } catch (x) { /* sem armazenamento */ } }
 
+  /* ---------------------------------------------------------- som (v6.8, D-90) */
+  // Efeitos sonoros por síntese (Web Audio API): nada de arquivo de áudio, então o HTML continua único, offline e sem direitos de terceiros.
+  // Cada som é uma função que agenda osciladores e ruído filtrado a partir de um instante 't'. Os sons acompanham os eventos do motor
+  // (somAcao) com os mesmos atrasos dos efeitos visuais. O som respeita 'ritmo' (com ritmo 0, como nos testes, fica mudo), o botão
+  // de mudo e o volume, ambos guardados no aparelho. O navegador só libera o áudio depois de um toque: o primeiro toque na página o destrava.
+  const SOM = (function () {
+    const CHAVE = 'neochess.som';
+    let ctx = null, P = null, mestre = null, vozes = 0, cfg = { mudo: false, vol: 0.6 };
+    try { const j = JSON.parse(localStorage.getItem(CHAVE)); if (j) cfg = Object.assign(cfg, j); } catch (x) { /* sem armazenamento */ }
+    function gravar() { try { localStorage.setItem(CHAVE, JSON.stringify(cfg)); } catch (x) { /* sem armazenamento */ } }
+    const ganho = function () { return cfg.mudo ? 0 : Math.pow(cfg.vol, 1.5); };
+
+    function bufferRuido(c) {   // 2 s de ruído branco, gerado sempre igual (determinístico)
+      const n = Math.floor(c.sampleRate * 2), b = c.createBuffer(1, n, c.sampleRate), d = b.getChannelData(0);
+      let a = 12345;
+      for (let i = 0; i < n; i++) { a = (a * 1103515245 + 12345) & 0x7fffffff; d[i] = a / 0x3fffffff - 1; }
+      return b;
+    }
+    // Primitivas ligadas a um contexto (ao vivo, ou offline nos testes) e a um nó de saída.
+    function primitivas(c, saida) {
+      const buf = bufferRuido(c); let nr = 0, alvo = saida;   // 'alvo' muda a cada som (ganho de normalização)
+      function voz(no) { vozes++; no.onended = function () { vozes--; }; }
+      function env(g, t, dur, vol, atk) {   // sobe em 'atk' e cai exponencialmente até o fim
+        atk = Math.min(atk === undefined ? 0.004 : atk, dur * 0.4) || 0.002;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(Math.max(vol, 0.0002), t + atk);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      }
+      function tom(t, f0, f1, dur, tipo, vol, atk) {
+        const o = c.createOscillator(), g = c.createGain();
+        o.type = tipo || 'sine'; o.frequency.setValueAtTime(f0, t);
+        if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(f1, 20), t + dur);
+        env(g, t, dur, vol, atk); o.connect(g); g.connect(alvo); o.start(t); o.stop(t + dur + 0.03); voz(o);
+      }
+      // forma (opcional): lista [fração da duração, ganho 0..1] no lugar do envelope padrão (para rugidos que crescem)
+      function ruido(t, dur, vol, filtro, f0, f1, q, atk, forma) {
+        const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+        s.buffer = buf; s.loop = true;
+        f.type = filtro || 'lowpass'; f.Q.value = q || 0.7; f.frequency.setValueAtTime(f0, t);
+        if (f1 !== f0) f.frequency.exponentialRampToValueAtTime(Math.max(f1, 20), t + dur);
+        if (forma) { g.gain.setValueAtTime(0.0001, t); forma.forEach(function (p) { g.gain.linearRampToValueAtTime(Math.max(p[1] * vol, 0.0001), t + p[0] * dur); }); }
+        else env(g, t, dur, vol, atk);
+        s.connect(f); f.connect(g); g.connect(alvo); s.start(t, (nr++ * 0.173) % 1.5); s.stop(t + dur + 0.03); voz(s);
+      }
+      function estalos(t, dur, n, vol, f) {   // estalidos de brasa em instantes fixos (sempre iguais)
+        for (let i = 0; i < n; i++) {
+          const k = ((i * 7919) % 97) / 97;
+          ruido(t + k * dur, 0.02 + (i % 3) * 0.008, vol * (0.5 + (i % 4) * 0.15), 'bandpass', f * (0.7 + (i % 5) * 0.2), f * 0.5, 1.2, 0.002);
+        }
+      }
+      return { saida: saida, tom: tom, ruido: ruido, estalos: estalos, ligar: function (no) { alvo = no; } };
+    }
+
+    // Catálogo. S = primitivas, t = instante (s), o = opções.
+    function notas(S, t, lista, passo, dur, tipo, vol) { lista.forEach(function (f, i) { S.tom(t + i * passo, f, f, dur, tipo, vol); }); }
+    const SONS = {
+      // interface
+      sel: function (S, t) { S.tom(t, 760, 1100, 0.07, 'triangle', 0.22); },
+      ui: function (S, t) { S.tom(t, 520, 420, 0.05, 'square', 0.10); },
+      erro: function (S, t) { S.tom(t, 180, 140, 0.15, 'square', 0.15); S.tom(t + 0.1, 170, 130, 0.15, 'square', 0.13); },
+      vez: function (S, t) { S.tom(t, 784, 784, 0.16, 'sine', 0.20); S.tom(t + 0.09, 1175, 1175, 0.22, 'sine', 0.16); },
+      // movimento
+      passo: function (S, t) { S.ruido(t, 0.07, 0.30, 'lowpass', 700, 250, 0.7); S.tom(t, 130, 70, 0.09, 'sine', 0.30); },
+      batedor: function (S, t, o) { const f = !!o.forte; S.ruido(t, f ? 0.34 : 0.2, f ? 0.30 : 0.2, 'bandpass', f ? 3500 : 2800, f ? 700 : 1000, 1.2, 0.02); if (f) S.tom(t, 300, 120, 0.2, 'sawtooth', 0.08); },
+      terra: function (S, t) { S.ruido(t, 0.14, 0.28, 'lowpass', 900, 300, 0.8); S.tom(t, 90, 60, 0.1, 'sine', 0.2); },
+      rumor: function (S, t) { S.ruido(t, 0.6, 0.22, 'lowpass', 170, 120, 0.8, 0.15); },
+      // golpes. o.tier: 'menos' (dano reduzido, andou antes), 'normal', 'mais' (dano aumentado: bônus de lança, flanco, Repelir bloqueado, barril sem recuo)
+      // o.peso (1 a 4): quanto dano foi calculado; mais dano, mais grave. o.u: quem bateu (muda o timbre)
+      golpe: function (S, t, o) {
+        const u = o.u || 'Se', tier = o.tier || 'normal', peso = Math.min(4, Math.max(1, o.peso || 2));
+        const g = tier === 'menos' ? 0.6 : tier === 'mais' ? 1.1 : 0.9, k = tier === 'menos' ? 0.8 : 1, grave = 150 - peso * 16;
+        const crack = tier === 'menos' ? 0.25 : 0.45;
+        if (u === 'En') { S.tom(t, 900, 450, 0.07, 'square', 0.12 * g); S.tom(t, 120, 70, 0.08, 'sine', 0.25 * g); }
+        else if (u === 'Ba') { S.ruido(t, 0.05, 0.5 * g, 'highpass', 2500, 2500, 0.7); S.tom(t, grave * 1.4 * k, grave * 0.6 * k, 0.09, 'sine', 0.4 * g); }
+        else if (u === 'Mi') { S.ruido(t, 0.08, crack * g, 'bandpass', 900 * k, 450 * k, 0.9); S.tom(t, grave * 1.2 * k, grave * 0.5 * k, 0.16 + peso * 0.03, 'sine', 0.6 * g); }
+        else if (u === 'Mj' || u === 'Re') { S.ruido(t, 0.06, crack * g, 'bandpass', 1300 * k, 700 * k, 0.9); S.tom(t, 230 * k, 110 * k, 0.13, 'triangle', 0.4 * g); S.tom(t, grave * 1.5 * k, grave * 0.55 * k, 0.12 + peso * 0.03, 'sine', 0.5 * g); }
+        else {   // Tanque (metálico), Arqueiro e Lanceiro (flecha e lança): baque seco
+          S.ruido(t, 0.06, crack * g, 'bandpass', 1800 * k, 900 * k, 0.9);
+          S.tom(t, grave * 1.6 * k, grave * 0.55 * k, 0.12 + peso * 0.03, 'sine', 0.55 * g);
+          if (u === 'Se') { S.tom(t, 520 * k, 500 * k, 0.22, 'square', 0.10 * g); S.tom(t, 783 * k, 770 * k, 0.18, 'square', 0.07 * g); }
+        }
+        if (tier === 'mais') {   // reforço: estalo que sobe, grave profundo, brilho e um "ding"
+          S.tom(t + 0.015, 500, 1900, 0.09, 'sawtooth', 0.18);
+          S.tom(t, 62, 40, 0.3, 'sine', 0.55);
+          S.ruido(t, 0.09, 0.35, 'highpass', 4000, 4000, 0.7);
+          S.tom(t + 0.05, 1320, 1320, 0.24, 'sine', 0.14);
+        }
+      },
+      tiro: function (S, t) { S.tom(t, 330, 220, 0.18, 'triangle', 0.2); S.ruido(t, 0.16, 0.22, 'bandpass', 2500, 900, 1.5); },
+      lanca: function (S, t) { S.ruido(t, 0.16, 0.3, 'bandpass', 1200, 3800, 1.4); S.tom(t, 1500, 2400, 0.1, 'sine', 0.05); },
+      arco: function (S, t) { S.tom(t, 1500, 320, 0.2, 'square', 0.10); S.tom(t, 1510, 330, 0.2, 'sawtooth', 0.06); },
+      empurrao: function (S, t) { S.ruido(t, 0.22, 0.35, 'bandpass', 600, 1800, 1.0); S.tom(t + 0.12, 110, 60, 0.15, 'sine', 0.4); },
+      // magia e fogo
+      bola: function (S, t) { S.ruido(t, 0.4, 0.4, 'bandpass', 300, 1500, 1.0, 0.12); S.tom(t, 180, 420, 0.4, 'triangle', 0.14, 0.1); },
+      chiado: function (S, t, o) { const g = o.g || 1; S.ruido(t, 0.4, 0.2 * g, 'highpass', 4500, 3000, 0.7); S.estalos(t, 0.3, 5, 0.25 * g, 2400); },
+      fogoLanca: function (S, t) { S.ruido(t, 0.45, 0.45, 'lowpass', 300, 1400, 0.8, 0.15); S.tom(t, 80, 140, 0.3, 'sawtooth', 0.18, 0.05); S.estalos(t + 0.1, 0.3, 4, 0.25, 2200); },
+      queima: function (S, t, o) {
+        const d = o.dur || 1, f = o.grave ? 0.7 : 1;
+        S.ruido(t, d, 0.55, 'lowpass', 350 * f, 900 * f, 0.8, 0, [[0, 0.05], [0.18, 1], [0.7, 0.8], [1, 0]]);
+        S.ruido(t, d, 0.25, 'bandpass', 2500, 1500, 0.9, 0, [[0, 0], [0.25, 1], [0.8, 0.6], [1, 0]]);
+        S.estalos(t, d * 0.9, Math.round(d * 16), 0.3, 2400);
+      },
+      // barril
+      barrilVoo: function (S, t) { S.ruido(t, 0.44, 0.22, 'bandpass', 400, 1800, 1.0, 0.1); [0.1, 0.2, 0.3].forEach(function (d) { S.tom(t + d, 220, 190, 0.05, 'square', 0.08); }); },
+      explosao: function (S, t) {
+        S.ruido(t, 0.7, 0.9, 'lowpass', 2200, 90, 0.7, 0.003); S.tom(t, 120, 32, 0.7, 'sine', 0.9, 0.003);
+        S.ruido(t, 0.12, 0.5, 'highpass', 3000, 3000, 0.7, 0.002); S.estalos(t + 0.12, 0.4, 6, 0.3, 900);
+      },
+      vento: function (S, t) { S.ruido(t, 0.55, 0.30, 'bandpass', 900, 350, 0.8, 0.15); },
+      // suporte e controle
+      cura: function (S, t, o) {
+        if (o.area) { notas(S, t, [523, 659, 784, 1047, 1319], 0.06, 0.3, 'triangle', 0.16); S.ruido(t, 0.5, 0.06, 'highpass', 6000, 6000, 0.7, 0.05); }
+        else notas(S, t, [660, 880, 1320], 0.07, 0.28, 'triangle', 0.2);
+      },
+      teia: function (S, t) { S.ruido(t, 0.12, 0.25, 'highpass', 5000, 5000, 0.7); S.tom(t, 2000, 700, 0.12, 'triangle', 0.12); },
+      // fim de unidade e de partida
+      morte: function (S, t) { S.tom(t, 260, 45, 0.5, 'sawtooth', 0.18); S.ruido(t, 0.45, 0.4, 'lowpass', 900, 90, 0.8); },
+      queda: function (S, t) { S.ruido(t, 0.9, 0.5, 'lowpass', 400, 80, 0.8, 0.05); S.tom(t, 70, 38, 0.9, 'sine', 0.5, 0.05); S.estalos(t, 0.8, 7, 0.25, 700); },
+      vitoria: function (S, t) { notas(S, t, [523, 659, 784], 0.12, 0.2, 'triangle', 0.22); S.tom(t + 0.36, 1047, 1047, 0.7, 'triangle', 0.24); S.tom(t + 0.36, 523, 523, 0.7, 'sine', 0.14); },
+      derrota: function (S, t) { notas(S, t, [440, 349, 294], 0.2, 0.3, 'triangle', 0.2); S.tom(t + 0.6, 220, 220, 0.8, 'sine', 0.2); },
+      empate: function (S, t) { S.tom(t, 392, 392, 0.3, 'triangle', 0.2); S.tom(t + 0.25, 392, 392, 0.5, 'triangle', 0.18); }
+    };
+
+    // Ganho de normalização: sons sintetizados saem em níveis muito diferentes; estes fatores (medidos offline) os igualam. Golpes mantêm a diferença entre níveis.
+    const NORM = { sel: 8, ui: 14, erro: 5, vez: 4, passo: 5, batedor: 9, terra: 7, rumor: 14, golpe: 3.4, tiro: 6, lanca: 9, arco: 9, empurrao: 1.6, bola: 3.5, chiado: 5, fogoLanca: 3, queima: 1.6, barrilVoo: 4.5, explosao: 1, vento: 4, cura: 3, teia: 8, morte: 4, queda: 1.4, vitoria: 1.8, derrota: 3, empate: 3.5 };
+    function agendar(S, c, nome, t, o) {
+      const g = c.createGain(); g.gain.value = NORM[nome] || 1; g.connect(S.saida); S.ligar(g); SONS[nome](S, t, o);
+    }
+    function ok(forcar) { return !!ctx && !cfg.mudo && cfg.vol > 0 && !document.hidden && (forcar || ritmo > 0); }
+    function tocarEm(nome, seg, o, forcar) {
+      if (!SONS[nome] || vozes > 80 || !ok(forcar)) return;
+      if (SOM.registro) SOM.registro.push({ nome: nome, ms: Math.round(seg * 1000), o: o || {} });
+      agendar(P, ctx, nome, ctx.currentTime + 0.01 + Math.max(0, seg), o || {});
+    }
+    // atraso em ms de efeito visual (escalado pelo ritmo, como os efeitos)
+    function tocar(nome, ms, o) { tocarEm(nome, (ms || 0) * ritmo * escFx / 1000, o, false); }
+    function destravar() {
+      try {
+        if (!ctx) {
+          const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+          ctx = new AC();
+          const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 6; comp.attack.value = 0.003; comp.release.value = 0.15;
+          mestre = ctx.createGain(); mestre.gain.value = ganho(); mestre.connect(comp); comp.connect(ctx.destination);
+          P = primitivas(ctx, mestre);
+        }
+        if (ctx.state === 'suspended') ctx.resume();
+      } catch (x) { ctx = null; }
+    }
+    function aplicar() { if (mestre) mestre.gain.value = ganho(); ui(); gravar(); }
+    function ui() {
+      const b = document.getElementById('btSom'), v = document.getElementById('selVol');
+      if (b) { b.textContent = cfg.mudo || cfg.vol === 0 ? '🔇' : '🔊'; b.title = cfg.mudo ? 'Som desligado (toque para ligar)' : 'Som ligado (toque para silenciar)'; }
+      if (v) v.value = String(Math.round(cfg.vol * 100));
+    }
+    function alternarMudo() { destravar(); cfg.mudo = !cfg.mudo; if (!cfg.mudo && cfg.vol === 0) cfg.vol = 0.6; aplicar(); if (!cfg.mudo) tocarEm('ui', 0, {}, true); }
+    function volume(v) { destravar(); cfg.vol = Math.max(0, Math.min(1, v)); if (cfg.vol > 0) cfg.mudo = false; aplicar(); }
+    // amostra para o jogador ouvir os sons principais (menu: botão Ouvir)
+    function demo() {
+      destravar(); if (!ctx) return;
+      const L = [['sel', 0], ['golpe', 0.5, { u: 'Se', tier: 'menos', peso: 1 }], ['golpe', 1.0, { u: 'Se', tier: 'normal', peso: 2 }], ['golpe', 1.5, { u: 'Se', tier: 'mais', peso: 3 }],
+        ['tiro', 2.2], ['golpe', 2.35, { u: 'Be', tier: 'normal', peso: 2 }], ['fogoLanca', 3.1], ['queima', 3.9, { dur: 1 }],
+        ['barrilVoo', 5.2], ['explosao', 5.64], ['vento', 5.68], ['cura', 6.5, {}], ['vitoria', 7.2]];
+      L.forEach(function (x) { tocarEm(x[0], x[1], x[2] || {}, true); });
+    }
+    // Só para testes: renderiza um som fora do tempo real e devolve as amostras (mono, 22,05 kHz).
+    function renderizar(nome, o, seg) {
+      const taxa = 22050, oc = new OfflineAudioContext(1, Math.ceil(taxa * seg), taxa), comp = oc.createDynamicsCompressor();
+      comp.threshold.value = -14; comp.ratio.value = 6; comp.attack.value = 0.003; comp.release.value = 0.15; comp.connect(oc.destination);
+      const g = oc.createGain(); g.gain.value = 0.46; g.connect(comp);   // ganho do volume padrão (0,6 elevado a 1,5)
+      agendar(primitivas(oc, g), oc, nome, 0.01, o || {});
+      return oc.startRendering().then(function (b) { return Array.from(b.getChannelData(0)); });
+    }
+    ['pointerdown', 'keydown', 'touchstart'].forEach(function (e) { document.addEventListener(e, destravar, true); });
+    return { tocar: tocar, tocarEm: tocarEm, destravar: destravar, alternarMudo: alternarMudo, volume: volume, demo: demo, ui: ui, ok: ok, renderizar: renderizar, nomes: Object.keys(SONS), registro: null,
+      get cfg() { return cfg; } };
+  })();
+
   /* ---------------------------------------------------------- partida */
   // Espera 'ms' (escalado pelo ritmo) e roda f, a menos que outra partida tenha começado.
   function espera(ms, f) {
@@ -1935,7 +2116,6 @@
     if (t <= 0) { f(); return; }
     timer = setTimeout(function () { if (g === geracao) f(); }, t);
   }
-  function ehHumano(j) { return modo === '2j' || j === humano; }   // no tutorial (modo 'tut') humano = 0
   // v5.0: lado da tela em que a equipe começou (média do x das casas iniciais). A figura é espelhada na equipe que
   // começa à direita, para que as duas fiquem de frente uma para a outra. Só no mapa diagonal (hex5d).
   // Sentido em que cada arte original foi desenhada (conferido no tabuleiro): Arqueiro e Lanceiro olham para a direita; as demais, para a esquerda.
@@ -1947,6 +2127,95 @@
     return (sx / n > 0) === ARTE_OLHA_DIREITA[tipo];
   }
   function girado() { return modo !== '2j' && humano === 0; }   // contra a IA, quem joga fica sempre embaixo (azul começa em cima: gira 180°)
+
+  /* ---------------------------------------------------------- controladores de jogador (v6.7, D-86) */
+  // Cada lado da partida tem um controlador: quem produz as jogadas daquele lado. A interface só desenha o estado e aplica a ação que o
+  // controlador do jogador da vez entrega. Contrato: { nome, humano, rotulo?, aguarde?, pedir?(estado, legais, cb) }.
+  //  - humano = true: a ação vem do toque na tela (não há pedir).
+  //  - pedir chama cb(acao) uma vez, de forma assíncrona. Se a partida mudar no meio (geracao), pedirJogada descarta a resposta.
+  // Controladores: local (toque), ia (busca, em Web Worker), roteiro (adversário do tutorial), boneco (treino), remoto (PVP, ainda sem rede).
+  const SEM_WORKER = /[?&]semworker/.test(location.search);   // força o cálculo síncrono (teste do plano B)
+  // Corpo do Worker. É copiado como texto: roda isolado, só com o motor e a IA (colados antes), sem acesso à página.
+  function corpoWorker() {
+    let ia = null;
+    self.onmessage = function (e) {
+      const m = e.data;
+      if (m.t === 'nova') { Motor.regrasV6(); ia = IA.busca(Motor, m.cfg); }   // regras e IA da partida (a IA guarda memória entre jogadas)
+      else if (m.t === 'pedir') self.postMessage({ t: 'ok', id: m.id, i: ia.escolher(m.estado, m.legais, IA.criarRng(m.semente)) });
+    };
+  }
+  const CIA = {
+    nome: 'ia', humano: false, rotulo: ' (IA) jogando…', aguarde: 'A IA está jogando.',
+    cfg: null, local: null, w: null, url: null, pend: null, seq: 0, semWorker: SEM_WORKER || typeof Worker === 'undefined' || typeof Blob === 'undefined',
+    ult: { ms: 0, worker: false },   // última jogada: tempo de cálculo e se foi no Worker (para medir em aparelho real)
+    iniciar: function (cfg) { this.terminar(); this.cfg = cfg; this.local = IA.busca(M, cfg); },   // nova partida: IA nova (o Worker é recriado sob demanda)
+    terminar: function () {
+      if (this.w) { this.w.terminate(); this.w = null; }
+      if (this.url) { URL.revokeObjectURL(this.url); this.url = null; }
+      this.pend = null;
+    },
+    garantir: function () {
+      if (this.w || this.semWorker) return;
+      try {
+        const src = el('srcMotor').textContent + '\n' + el('srcIA').textContent + '\n(' + corpoWorker.toString() + ')();';
+        this.url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+        const w = this.w = new Worker(this.url), eu = this;
+        w.onmessage = function (e) { eu.chegou(e.data); };
+        w.onerror = function () { eu.falhou(); };
+        w.postMessage({ t: 'nova', cfg: this.cfg });
+      } catch (x) { this.semWorker = true; this.terminar(); }   // plano B: calcula na própria página
+    },
+    chegou: function (m) {
+      if (!this.pend || m.id !== this.pend.id) return;   // resposta de um pedido que já foi cancelado
+      const p = this.pend; this.pend = null; p.ret(m.i, true);
+    },
+    falhou: function () { const p = this.pend; this.semWorker = true; this.terminar(); if (p) p.sinc(); },
+    pedir: function (estado, legais, cb) {
+      if (this.pend) this.terminar();   // sobrou um pedido de uma partida cancelada: descarta o Worker ocupado
+      const semente = (rng() * 4294967296) | 0, t0 = performance.now(), eu = this;
+      let calculada = false, esperou = false, i = 0;
+      const fim = function () { if (calculada && esperou) cb(legais[i]); };
+      const ret = function (idx, noWorker) { i = idx; calculada = true; eu.ult = { ms: Math.round(performance.now() - t0), worker: !!noWorker }; fim(); };
+      const sinc = function () { setTimeout(function () { ret(eu.local.escolher(estado, legais, IA.criarRng(semente)), false); }, 0); };
+      espera(T.pensa, function () { esperou = true; fim(); });   // pausa mínima de "pensando", como antes
+      this.garantir();
+      if (this.semWorker) { sinc(); return; }
+      this.pend = { id: ++this.seq, ret: ret, sinc: sinc };
+      this.w.postMessage({ t: 'pedir', id: this.pend.id, estado: estado, legais: legais, semente: semente });
+    }
+  };
+  const CTRL = {
+    local: { nome: 'local', humano: true },
+    ia: CIA,
+    // tutorial: o adversário joga a resposta roteirizada do passo
+    roteiro: { nome: 'roteiro', humano: false, rotulo: ' jogando…', aguarde: 'Resolvendo a jogada…',
+      pedir: function (estado, legais, cb) { const r = tutPasso().resposta; espera(T.pensa, function () { cb(r); }); } },
+    // treino (D-80): o boneco só passa a vez
+    boneco: { nome: 'boneco', humano: false, rotulo: ' jogando…', aguarde: 'Resolvendo a jogada…',
+      pedir: function (estado, legais, cb) { espera(120, function () { cb({ a: 'passe' }); }); } },
+    // PVP (Etapa 2): a ação do adversário chega de fora, por 'entregar'. Ainda sem rede: serve de ponto de encaixe e de teste.
+    remoto: { nome: 'remoto', humano: false, rotulo: ' (adversário) jogando…', aguarde: 'Aguardando a jogada do adversário.', fila: [], espera: null,
+      reiniciar: function () { this.fila = []; this.espera = null; },
+      pedir: function (estado, legais, cb) { if (this.fila.length) cb(this.fila.shift()); else this.espera = cb; },
+      entregar: function (acao) { if (this.espera) { const f = this.espera; this.espera = null; f(acao); } else this.fila.push(acao); } }
+  };
+  function controlador(j) {
+    if (modo === 'tut') return j === 0 ? CTRL.local : CTRL.roteiro;
+    if (modo === 'treino') return j === 0 ? CTRL.local : CTRL.boneco;
+    if (modo === 'pvp') return j === humano ? CTRL.local : CTRL.remoto;   // modo interno, só por gancho de teste
+    return modo === '2j' || j === humano ? CTRL.local : CTRL.ia;
+  }
+  function ehHumano(j) { return controlador(j).humano; }
+  // Pede a jogada ao controlador do jogador da vez e a aplica. A resposta é descartada se outra partida começou nesse meio-tempo.
+  function pedirJogada(c) {
+    const g = geracao;
+    pensando = true; desenhar();
+    c.pedir(jogo, legais, function (acao) {
+      if (g !== geracao) return;
+      pensando = false;
+      executar(acao, true);   // 'daIA' = jogada que não veio de toque humano (IA, roteiro, boneco, remoto, demonstração)
+    });
+  }
 
   function novaPartida() {
     clearTimeout(timer); pensando = false; animando = false; geracao++; selIA = destPrev = null; piscar = {}; limparFx(); if (typeof retorno !== 'undefined') retorno = null;
@@ -1962,7 +2231,9 @@
     jogo = M.novoJogo({ mapa: 'hex5d', exercitos: exercitos, slots: slots }); snapshots = []; confirmaTerm = false; acoes = []; log = []; ultimoEv = []; fimMostrado = false;
     sel = tipoAcao = passoInv = pendMov = insp = null;
     rng = IA.criarRng((Date.now() ^ (Math.random() * 1e9)) | 0);
-    ia = modo === '2j' ? null : IA.busca(M, { profundidade: modo === 'ia2' ? 2 : 1, pesoAprox: 0.05, pesoUnidade: 2 * esc });
+    CTRL.remoto.reiniciar();
+    if (modo === 'ia1' || modo === 'ia2') CIA.iniciar({ profundidade: modo === 'ia2' ? 2 : 1, pesoAprox: 0.05, pesoUnidade: 2 * esc });
+    else CIA.terminar();
     fecharJanelas();
     atualizar();
   }
@@ -1975,17 +2246,8 @@
       if (!fimMostrado) { fimMostrado = true; stats.partidas++; registrarPartida(); gravarStats(); setTimeout(mostrarFim, 450); }
       return;
     }
-    if (modo === 'treino') { if (jogo.jogador === 1) espera(120, function () { executar({ a: 'passe' }, true); }); return; }   // v6.5: o boneco não age
-    if (!ehHumano(jogo.jogador)) agendarIA();
-  }
-
-  function agendarIA() {
-    pensando = true; desenhar();
-    espera(T.pensa, function () {
-      const i = ia.escolher(jogo, legais, rng);
-      pensando = false;
-      executar(legais[i], true);
-    });
+    const c = controlador(jogo.jogador);
+    if (!c.humano) pedirJogada(c);
   }
 
   /* ---------------------------------------------------------- efeitos (animação mínima) */
@@ -2263,7 +2525,39 @@
     an.onfinish = function () { t.remove(); };
   }
   // Antes do commit: estocada do atacante e números de dano/cura/Emboscada sobre o alvo.
+  // v6.8 (D-90): nível do dano. 'menos' = menor que o dano normal de quem bateu (andou antes); 'mais' = maior (bônus); 'normal' = o dano da ficha.
+  function tierDano(ev, acao, tipo) {
+    const cat = CAT[tipo]; if (!cat) return 'normal';
+    if (ev.via === 'barril') { const d = M.CATALOGO.barril.dano; return ev.bruto > d ? 'mais' : ev.bruto < d ? 'menos' : 'normal'; }
+    if (ev.via === 'fogo') return 'normal';
+    if (cat.hab === 'repelir' && acao && acao.a === 'hab') return ev.bruto >= M.CATALOGO.repelir.bloqueado ? 'mais' : 'normal';   // Repelir: empurrou (leve) ou bateu em parede (reforçado)
+    return ev.bruto > cat.atq.dano ? 'mais' : ev.bruto < cat.atq.dano ? 'menos' : 'normal';
+  }
+  // Sons da jogada, com os mesmos atrasos (ms) dos efeitos visuais de efeitosAcao.
+  function somAcao(evs, acao) {
+    if (!SOM.ok()) return;
+    acao = acao || {};
+    const lancou = {}; let chiados = 0;
+    evs.forEach(function (ev) {
+      if (ev.t === 'dano' && ev.valor > 0) {
+        const uf = unidade(ev.fonte), tipo = uf ? uf.tipo : (ev.fonte ? ev.fonte.slice(1) : '');
+        if (ev.via === 'fogo') { if (chiados++ < 3) SOM.tocar('chiado', 110, { g: chiados === 1 ? 1 : 0.5 }); return; }
+        const op = { u: ev.via === 'barril' ? 'Mj' : tipo, tier: tierDano(ev, acao, ev.via === 'barril' ? 'Mj' : tipo), peso: ev.bruto };
+        if (ev.via === 'barril') { SOM.tocar('golpe', 560, op); return; }
+        if (tipo === 'Be') { if (!lancou.Be) SOM.tocar('tiro', 0); lancou.Be = true; SOM.tocar('golpe', 150, op); }
+        else if (tipo === 'La') { SOM.tocar('lanca', 0); SOM.tocar('golpe', 110, op); }
+        else if (tipo === 'En') { SOM.tocar('arco', 0); SOM.tocar('golpe', 110, op); }
+        else if (tipo === 'Mg') { SOM.tocar('bola', 0); SOM.tocar('golpe', 400, op); SOM.tocar('chiado', 420, {}); }
+        else SOM.tocar('golpe', 110, op);
+      } else if (ev.t === 'fogo') SOM.tocar('fogoLanca', 0);
+      else if (ev.t === 'barril') { SOM.tocar('barrilVoo', 0); SOM.tocar('explosao', 440); SOM.tocar('vento', 480); }
+      else if (ev.t === 'cura') { if (ev.valor > 0 && !(acao.a === 'hab' && acao.alvo === acao.u && ev.alvo !== acao.u)) SOM.tocar('cura', 80, { area: acao.alvo === acao.u }); }
+      else if (ev.t === 'preso') { SOM.tocar('arco', 0); SOM.tocar('teia', 200); }
+      else if (ev.t === 'empurrao' && ev.via !== 'barril') SOM.tocar('empurrao', 0);
+    });
+  }
   function efeitosAcao(evs, acao) {
+    somAcao(evs, acao);
     if (!efeitosAtivos()) return;
     acao = acao || {};
     evs.forEach(function (ev) {
@@ -2326,6 +2620,7 @@
           corpo.animate([{ transform: 'translate(0px,0px)', offset: 0 }].concat(fr, [{ transform: 'translate(0px,0px)', offset: .22 }, { transform: 'translate(0px,' + H + 'px)', offset: .45 },
             { transform: 'translate(0px,' + H + 'px)', offset: .55 }, { transform: 'translate(0px,0px)', offset: .78 }, { transform: 'translate(0px,0px)', offset: 1 }]), op);
         }
+        SOM.tocar('rumor', T * .1); SOM.tocar('terra', T * .04); SOM.tocar('terra', T * .24); SOM.tocar('terra', T * .55); SOM.tocar('terra', T * .68);
         depois(T * .04, function () { FX.terra(f.t); });
         depois(T * .24, function () { FX.terra(f.t); });
         depois(T * .55, function () { FX.terra(p); });
@@ -2344,7 +2639,7 @@
         total = Math.max(total, cavar(g, f.t, p));
       } else if (f && velo[g.dataset.id] && (f.t[0] !== p[0] || f.t[1] !== p[1])) {   // Batedor: riscos de velocidade; na Investida, mais forte
         const inv = velo[g.dataset.id] === 2, un = unidade(g.dataset.id), cl = COR_PECA[un ? un.dono : 0];
-        FX.velocidade(f.t, p, inv, cl.luz);
+        FX.velocidade(f.t, p, inv, cl.luz); SOM.tocar('batedor', 0, { forte: inv });
         if (inv) { FX.rastro(f.t, p, cl.face); FX.fantasmas(g, f.t, p); }
         anim(g, [{ transform: tr(f.t) }, { transform: tr(p) }], { duration: (inv ? 240 : 280) * ritmo, easing: inv ? 'cubic-bezier(.2,.7,.3,1)' : 'ease-in-out' });
         total = Math.max(total, inv ? 380 : 300);
@@ -2352,6 +2647,7 @@
         anim(g, [{ transform: tr(f.t) }, { transform: tr(p) }], { duration: 240 * ritmo, easing: 'cubic-bezier(.15,.8,.3,1)' });
         total = Math.max(total, 240);
       } else if (f && (f.t[0] !== p[0] || f.t[1] !== p[1])) {
+        SOM.tocar('passo', 40);
         anim(g, [{ transform: tr(f.t) }, { transform: tr([(f.t[0] + p[0]) / 2, (f.t[1] + p[1]) / 2 - 7]), offset: .5 }, { transform: tr(p) }], { duration: 300 * ritmo, easing: 'ease-in-out' });
         total = Math.max(total, 300);
       }
@@ -2359,7 +2655,7 @@
     evs.forEach(function (ev) {
       if (ev.t !== 'morte' || !antes[ev.id]) return;
       const f = antes[ev.id], g = f.no;
-      el('cFx').appendChild(g); FX.morte(corpo(f.t));
+      el('cFx').appendChild(g); FX.morte(corpo(f.t)); SOM.tocar('morte', 0);
       const an = g.animate([{ transform: tr(f.t), opacity: 1 }, { transform: tr(f.t, ' scale(.3)'), opacity: 0 }], { duration: 420 * ritmo, easing: 'ease-in', fill: 'both' });
       an.onfinish = function () { g.remove(); };
       total = Math.max(total, 420);
@@ -2376,7 +2672,7 @@
     if (tut && !daIA) {   // tutorial: só a jogada pedida vale; as outras recebem a dica
       if (tutPasso().info) { tut.aviso = 'Toque em Continuar.'; tutCard(); return; }
       if (tut.fase === 'demo') { tut.aviso = 'Espere a demonstração acabar (ou toque em Pular demonstração).'; tutCard(); return; }
-      if (tut.fase !== 'aguarda' || !TD.confere(tutPasso().esperado, acao)) { tut.aviso = 'Quase: siga o que está piscando.'; tutCard(); return; }
+      if (tut.fase !== 'aguarda' || !TD.confere(tutPasso().esperado, acao)) { tut.aviso = 'Quase: siga o que está piscando.'; SOM.tocar('erro', 0); tutCard(); return; }
       tut.fase = 'humano'; tut.aviso = '';
     }
     const r = M.aplicar(jogo, acao);   // valida; o estado só vale no commit
@@ -2400,6 +2696,7 @@
 
     let fogoFeito = false, faseAFeita = false;
     function valer() {   // o estado final vale: narração, deslizes (só da fase B quando há duas fases) e liberação da jogada
+      if (r.eventos.some(function (ev) { return ev.t === 'contracao'; })) SOM.tocar('queda', 0);
       const quem = jogo.jogador, antes = efeitosAtivos() ? fotografar() : {};
       jogo = r.estado; acoes.push(acao); ultimoEv = r.eventos;
       const linhas = r.eventos.map(function (ev) { return narrar(ev, quem); }).filter(Boolean);
@@ -2409,13 +2706,13 @@
       legais = M.acoesLegais(jogo);
       desenhar();
       const anim = efeitosEstado(antes, faseAFeita ? evB : r.eventos);
-      espera(Math.max(daIA ? T.apos : 0, anim, barrilMj && !faseAFeita ? T_BARRIL_FIM - T_BARRIL_VALE : 0), function () { animando = false; atualizar(); });
+      espera(Math.max(daIA ? T.apos : 0, anim, barrilMj && !faseAFeita ? T_BARRIL_FIM - T_BARRIL_VALE : 0), function () { animando = false; if (daIA && (modo === 'ia1' || modo === 'ia2') && !jogo.resultado && ehHumano(jogo.jogador)) SOM.tocar('vez', 0); atualizar(); });
     }
     function faseB() {   // a queima, por último
       const qs = evB.filter(function (ev) { return ev.t === 'queima'; }), cel = [];
       qs.forEach(function (q) { ocultas[chave(q.centro[0], q.centro[1])] = true; q.casas.forEach(function (c) { cel.push(c); }); });
       piscar = mapaPisca(evB); desenhar();
-      FX.fogo(cel, 1000); efeitosAcao(evB, acao);
+      SOM.tocar('queima', 0, { dur: 1 }); FX.fogo(cel, 1000); efeitosAcao(evB, acao);
       espera(1000, valer);
     }
     function commit() {
@@ -2425,7 +2722,7 @@
         const R = M.mapaEfetivo(jogo).raio, cel = [];
         if (ct.modo === 'celula') ct.caidas.forEach(function (c) { cel.push(c); });
         else for (let q = -R; q <= R; q++) for (let rr = -R; rr <= R; rr++) if (Math.abs(q + rr) <= R && M.anelDe(q, rr) === R) cel.push([q, rr]);
-        desenhar(); FX.fogo(cel, 1500);
+        SOM.tocar('queima', 0, { dur: 1.5, grave: true }); desenhar(); FX.fogo(cel, 1500);
         const g = geracao; timer = setTimeout(function () { if (g === geracao) commit(); }, 1500);
         return;
       }
@@ -2655,7 +2952,7 @@
     const jaInsp = insp;
     insp = null;
     if (u && u.dono === jogo.jogador) {   // inclusive unidade sem jogada: seleciona e o painel avisa
-      if (sel === u.id) { sel = tipoAcao = passoInv = null; } else { sel = u.id; tipoAcao = null; passoInv = null; }
+      if (sel === u.id) { sel = tipoAcao = passoInv = null; } else { sel = u.id; tipoAcao = null; passoInv = null; SOM.tocar('sel', 0); }
     } else if (u && u.dono !== jogo.jogador) {   // inimigo fora de alcance: mostra o alcance dele
       sel = tipoAcao = passoInv = null; insp = jaInsp === u.id ? null : u.id;
     } else { sel = tipoAcao = passoInv = null; }   // casa sem ação: desmarca
@@ -2697,7 +2994,7 @@
     b.innerHTML = h; b.hidden = false;
     if (tut && tutEtapa() === 'botao') { const bh = b.querySelector('button[data-k="hab"]'); if (bh) bh.classList.add('tutBtn'); }
     b.querySelectorAll('button[data-k]').forEach(function (bt) {
-      bt.onclick = function () { tipoAcao = tipoAcao === bt.dataset.k ? null : bt.dataset.k; passoInv = null; desenhar(); };
+      bt.onclick = function () { SOM.tocar('ui', 0); tipoAcao = tipoAcao === bt.dataset.k ? null : bt.dataset.k; passoInv = null; desenhar(); };
     });
     if (el('bbBarril')) el('bbBarril').onclick = function () { const a = base.filter(function (x) { return x.a === 'hab' && x.centro && chave(x.centro[0], x.centro[1]) === passoInv; })[0]; if (a) executar(a); };
     if (el('bbFogo')) el('bbFogo').onclick = function () { const a = base.filter(function (x) { return x.centro && chave(x.centro[0], x.centro[1]) === passoInv; })[0]; if (a) executar(a); };
@@ -3008,7 +3305,7 @@
     const j = jogo.jogador;
     let vez;
     if (jogo.resultado) vez = jogo.resultado.vencedor === null ? 'Empate' : 'Venceu: <span class="p' + (jogo.resultado.vencedor + 1) + '">' + COR[jogo.resultado.vencedor] + '</span>';
-    else if (pensando || (animando && !ehHumano(j))) vez = '<span class="p' + (j + 1) + '">' + COR[j] + '</span> (IA) jogando…';
+    else if (pensando || (animando && !ehHumano(j))) vez = '<span class="p' + (j + 1) + '">' + COR[j] + '</span>' + (controlador(j).rotulo || ' (IA) jogando…');
     else vez = 'Vez do <span class="p' + (j + 1) + '">' + COR[j] + '</span>' + (modo !== '2j' && j === humano ? ' (você)' : '');
     el('vez').innerHTML = vez;
 
@@ -3077,7 +3374,7 @@
     } else if (turnoHumano()) {
       painel('<h2>Sua jogada</h2>', '<p class="desc">Clique numa unidade sua para ver o que ela pode fazer. Uma unidade, uma ação por turno.</p>', '');
     } else {
-      painel('<h2>Aguarde</h2>', '<p class="desc">' + (jogo.resultado ? 'Partida encerrada.' : modo === '2j' ? 'Resolvendo a jogada…' : 'A IA está jogando.') + '</p>', '');
+      painel('<h2>Aguarde</h2>', '<p class="desc">' + (jogo.resultado ? 'Partida encerrada.' : modo === '2j' ? 'Resolvendo a jogada…' : (controlador(jogo.jogador).aguarde || 'A IA está jogando.')) + '</p>', '');
     }
 
     // quadro de ações: aparece ao selecionar/inspecionar; os detalhes ficam ocultos até o jogador pedir
@@ -3105,13 +3402,14 @@
     else titulo = 'Venceu o ' + COR[r.vencedor];
     el('fimTitulo').textContent = titulo;
     el('fimTexto').textContent = MOTIVO[r.tipo] + ' (' + jogo.meioTurno + ' meios-turnos.)';
+    SOM.tocar(r.vencedor === null ? 'empate' : (modo === '2j' || r.vencedor === humano) ? 'vitoria' : 'derrota', 0);
     abrir('veuFim');
     el('btRevanche').focus();
   }
 
   function exportar() {   // JSON da partida (usado no relatório)
     el('expTexto').value = JSON.stringify({
-      motor: 'v6.6', catalogo: M.CATALOGO.versao, mapa: jogo.mapa, exercitos: exercitos, deck: deckAtual, deckIA: modo === '2j' ? null : deckIA, fogo: M.CATALOGO.fogo, barril: M.CATALOGO.barril, modo: modo, humano: humano,
+      motor: 'v6.8', catalogo: M.CATALOGO.versao, mapa: jogo.mapa, exercitos: exercitos, deck: deckAtual, deckIA: modo === '2j' ? null : deckIA, fogo: M.CATALOGO.fogo, barril: M.CATALOGO.barril, modo: modo, humano: humano,
       regras: { moverEAgir: M.CATALOGO.moverEAgir.ativo ? M.CATALOGO.moverEAgir.bonus : false, escalaPV: M.CATALOGO.escalaPV, mana: M.CATALOGO.mana, danoBa: CAT.Ba.atq.dano, danoAt: CAT.At.atq.dano },
       acoes: acoes, resultado: jogo.resultado, meiosTurnos: jogo.meioTurno, sessao: stats
     });
@@ -3194,7 +3492,7 @@
     const h = stats.hist, cont = function (f) { return h.filter(f).length; };
     const media = function (k) { const v = h.map(function (x) { return x[k]; }).filter(Boolean); return v.length ? (v.reduce(function (a, b) { return a + b; }, 0) / v.length).toFixed(1) + ' (' + v.length + ')' : 'sem nota'; };
     const l = [];
-    l.push('RELATÓRIO NeoChess v6.6 · testador ' + stats.id);
+    l.push('RELATÓRIO NeoChess v6.8 · testador ' + stats.id);
     l.push('Aparelho: ' + (/iPad|Tablet|Android(?!.*Mobile)/i.test(navigator.userAgent) ? 'tablet' : /Mobi|iPhone|Android/i.test(navigator.userAgent) ? 'celular' : 'computador') + ' · tela ' + screen.width + 'x' + screen.height + ' · ' + new Date().toISOString().slice(0, 16));
     l.push('Partidas: ' + stats.partidas + ' · Revanches pedidas: ' + stats.revanches + ' · Guia lido: ' + (stats.guia ? 'sim' : 'não'));
     l.push('Contra a IA: ' + cont(function (x) { return x.res === 'V'; }) + ' vitórias, ' + cont(function (x) { return x.res === 'D'; }) + ' derrotas, ' + cont(function (x) { return x.res === 'E'; }) + ' empates · mesma tela: ' + cont(function (x) { return /^J/.test(x.res); }));
@@ -3220,7 +3518,7 @@
     modo = 'treino'; humano = 0; treinoTipo = tipo;
     jogo = M.novoTreino(tipo); exercitos = [jogo.unidades.filter(function (u) { return u.dono === 0; }).map(function (u) { return u.tipo; }), jogo.unidades.filter(function (u) { return u.dono === 1; }).map(function (u) { return u.tipo; })];
     snapshots = []; acoes = []; log = []; ultimoEv = []; fimMostrado = false; confirmaTerm = false;
-    sel = tipoAcao = passoInv = pendMov = insp = null; ia = null;
+    sel = tipoAcao = passoInv = pendMov = insp = null; CIA.terminar();
     document.body.classList.add('treino'); fecharJanelas();
     atualizar();
   }
@@ -3270,7 +3568,7 @@
     legais = M.acoesLegais(jogo); desenhar();
     if (tut.fase === 'humano') {
       const p = tutPasso();
-      if (p.resposta) { tut.fase = 'resposta'; espera(T.pensa, function () { executar(p.resposta, true); }); return; }
+      if (p.resposta) { tut.fase = 'resposta'; pedirJogada(CTRL.roteiro); return; }
       tutAvancar(); return;
     }
     if (tut.fase === 'resposta') { tutAvancar(); return; }
@@ -3424,6 +3722,17 @@
       '<p class="desc" style="margin:6px 0 0">Efeito ligado por padrão em partidas: tiro, lança, arco, teia, impacto, cura, onda, rastro, terra e eliminação. Anote o que melhorar.</p>';
     document.querySelector('.lateral').prepend(p);
     EFS.forEach(function (e) { const b = document.createElement('button'); b.textContent = e[0]; b.onclick = function () { e[1](); }; el('labBot').appendChild(b); });
+    (function () {   // v6.8: sons para ouvir um a um
+      const pg = document.createElement('div'); pg.className = 'modos'; pg.id = 'labSom';
+      const L = [['Seleção', 'sel'], ['Botão', 'ui'], ['Erro', 'erro'], ['Sua vez', 'vez'], ['Passo', 'passo'], ['Batedor', 'batedor'], ['Investida', 'batedor', { forte: true }], ['Escavar', 'terra'],
+        ['Golpe reduzido (Tanque)', 'golpe', { u: 'Se', tier: 'menos', peso: 1 }], ['Golpe normal (Tanque)', 'golpe', { u: 'Se', tier: 'normal', peso: 2 }], ['Golpe reforçado (Tanque)', 'golpe', { u: 'Se', tier: 'mais', peso: 3 }],
+        ['Golpe normal (Batedor)', 'golpe', { u: 'Ba', tier: 'normal', peso: 2 }], ['Golpe reforçado (Lanceiro)', 'golpe', { u: 'La', tier: 'mais', peso: 3 }], ['Golpe normal (Mineiro)', 'golpe', { u: 'Mi', tier: 'normal', peso: 2 }],
+        ['Tiro', 'tiro'], ['Lança', 'lanca'], ['Arco', 'arco'], ['Empurrão', 'empurrao'], ['Bola de fogo', 'bola'], ['Chiado', 'chiado'], ['Fogo: lançar', 'fogoLanca'], ['Fogo: queima', 'queima', { dur: 1 }],
+        ['Barril: voo', 'barrilVoo'], ['Barril: explosão', 'explosao'], ['Vento', 'vento'], ['Cura', 'cura', {}], ['Cura em área', 'cura', { area: true }], ['Teia', 'teia'],
+        ['Eliminação', 'morte'], ['Chão cai', 'queda'], ['Contração: fogo', 'queima', { dur: 1.5, grave: true }], ['Vitória', 'vitoria'], ['Derrota', 'derrota'], ['Empate', 'empate']];
+      L.forEach(function (x) { const b = document.createElement('button'); b.textContent = x[0]; b.onclick = function () { SOM.destravar(); SOM.tocarEm(x[1], 0, x[2] || {}, true); }; pg.appendChild(b); });
+      const t = document.createElement('p'); t.className = 'desc'; t.textContent = 'Sons (síntese; volume e mudo no topo e no Menu):'; p.appendChild(t); p.appendChild(pg);
+    })();
     el('labEsc').oninput = function () { escFx = +el('labEsc').value; el('labEscV').textContent = escFx.toFixed(1).replace('.', ','); };
     stats.visto = true; el('selModo').value = '2j'; aoMudarModo(); labMarcar();
   }
@@ -3592,6 +3901,10 @@
     return { ok: ok, alternar: alternar, ativa: ativa };
   })();
   el('btTelaCheia').onclick = TELA.alternar;
+  el('btSom').onclick = SOM.alternarMudo;
+  el('selVol').oninput = function () { SOM.volume(+el('selVol').value / 100); };
+  el('btSomTeste').onclick = SOM.demo;
+  SOM.ui();
   el('popLogX').onclick = function () { el('popLog').hidden = true; };
   el('btJogadas').onclick = function () { el('popLog').hidden = !el('popLog').hidden; };
   function alternarContracao() { const c = el('contracao'); c.classList.toggle('aberta'); c.textContent = c.classList.contains('aberta') ? c.dataset.longo : c.dataset.curto; }
@@ -3658,7 +3971,7 @@
   lerStats(); montarNotas();
   aoMudarModo();
   if (LAB) iniciarLab(); else abrir('veuBemVindo');   // v6.6: toda abertura começa pela entrada (pede tela cheia) e segue para o menu
-  window.TAO = { tutIniciar: tutIniciar, tut: function () { return tut; }, atualizar: atualizar, desfazer: desfazer, clicar: clicar, M: M, estado: function () { return jogo; }, executar: executar, pendente: function () { return pendMov !== null; } };   // gancho para testes
+  window.TAO = { SOM: SOM, tierDano: tierDano, CTRL: CTRL, CIA: CIA, pvpTeste: function (lado) { modo = 'pvp'; humano = lado; novaPartida(); }, tutIniciar: tutIniciar, tut: function () { return tut; }, atualizar: atualizar, desfazer: desfazer, clicar: clicar, M: M, estado: function () { return jogo; }, executar: executar, pendente: function () { return pendMov !== null; } };   // gancho para testes
 })();
 </script>
 </body>
