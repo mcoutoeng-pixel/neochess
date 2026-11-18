@@ -3,11 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark only"><meta name="supported-color-schemes" content="dark">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>NeoChess v6.8 (som, teste)</title>
+<title>NeoChess v7.0</title>
 <style>
   :root {
-    --bg: #14171c; --painel: #1d222a; --linha: #2d343f; --texto: #e6e9ee; --suave: #9aa4b2;
+    --bg: #14171c; --painel: #1d222a; --linha: #2d343f; --texto: #e6e9ee; --suave: #9aa4b2; --botao: #2b323d; --botaoBorda: #4a5565;
     --p1: #7f9bb8; --p2: #c3a468; --hex: #262d38; --hexb: #3a4452; --obs: #0c0e12;
     --ok: #5fd38d; --atq: #ff5d5d; --hab: #c58bff; --cura: #5fd3c8; --aviso: #ffd24d;
   }
@@ -20,9 +21,10 @@
   header h1 { font-size: 16px; margin: 0 8px 0 0; letter-spacing: .02em; white-space: nowrap; }
   header .grupo button { min-height: 36px; padding: 4px 12px; }
   header .grupo { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-  select, button { font: inherit; color: var(--texto); background: var(--painel); border: 1px solid var(--linha);
+  select, button { font: inherit; color: var(--texto); background: var(--botao); border: 1px solid var(--botaoBorda);
     border-radius: 6px; padding: 6px 10px; cursor: pointer; }
-  button:hover, select:hover { border-color: var(--suave); }
+  button:hover, select:hover { border-color: var(--suave); background: #343c49; }
+  button.principal:hover { background: #3169ab; }
   button:focus-visible, select:focus-visible { outline: 2px solid var(--p1); outline-offset: 2px; }
   button.principal { background: #2a5a96; border-color: #3a74bd; }
   button:disabled { opacity: .45; cursor: default; }
@@ -46,6 +48,11 @@
     #stage { flex-direction: column; }
     #barraLateral { flex: none; position: static; min-height: 0; }
     #barraConteudo { position: static; overflow: visible; }
+  }
+  /* v7.0: em tela larga o tabuleiro ocupa a altura toda (largura = altura x proporção) e o painel lateral fica com o que sobra, até 520 px */
+  @media (min-aspect-ratio: 5/4) {
+    #colTab { flex: 0 1 calc((100dvh - 66px) * var(--asp, 1.524) + 2px); }
+    #barraLateral { flex: 1 1 250px; min-width: 250px; max-width: 520px; }
   }
   .pop .desc { font-size: 12.5px; line-height: 1.4; }
   .pop .desc p, .pop p.desc { margin: 0 0 6px; }
@@ -177,6 +184,9 @@
   .passos i.on { background: var(--p1); }
   .grade { display: grid; grid-template-columns: 1fr; gap: 8px; margin: 8px 0; }
   .ficha { display: grid; grid-template-columns: 38px 1fr; gap: 10px; padding: 8px 10px; border: 1px solid var(--linha); border-radius: 8px; background: #181d25; }
+  /* v6.9: impede escurecimento/clareamento automático do navegador (modo escuro forçado, ajuste de cor do aparelho) nas cores de PV e mana */
+  :root { color-scheme: dark only; }
+  svg, svg * { forced-color-adjust: none; }
   .ficha svg { width: 38px; height: 38px; background: #7aa2ff; border-radius: 50%; padding: 5px; }
   .ficha h3 { margin: 0 0 2px; font-size: 14.5px; }
   .ficha .nums { font-size: 12.5px; color: var(--suave); margin-bottom: 2px; }
@@ -192,7 +202,7 @@
   .janela .acoes { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; flex-wrap: wrap; }
   textarea { width: 100%; height: 150px; background: #10131a; color: var(--texto); border: 1px solid var(--linha); border-radius: 6px; font: 12px/1.4 ui-monospace, monospace; padding: 8px; }
   /* ---- versão com arte: tabuleiro inclinado (eixo vertical x 0,6), unidades em pé, cenário ---- */
-  #tabWrap { width: 100%; max-width: calc((100dvh - 66px) * 1.524); background: #0d1015; border: 1px solid var(--linha); border-radius: 10px; overflow: hidden; }
+  #tabWrap { width: 100%; max-width: calc((100dvh - 66px) * var(--asp, 1.524)); background: #0d1015; border: 1px solid var(--linha); border-radius: 10px; overflow: hidden; }
   @media (max-aspect-ratio: 5/4) { #tabWrap { max-width: none; } main { flex: none; } #jogoArea { display: block; } body { height: auto; } }
   #fundo { position: absolute; inset: 0; width: 100%; height: 100%; }
   #tabuleiro { position: relative; display: block; background: transparent; border: 0; border-radius: 0; }
@@ -301,7 +311,7 @@
 </head>
 <body>
 <header>
-  <h1>NeoChess <span class="sub" style="color:var(--suave);font-weight:400">v6.8</span></h1>
+  <h1>NeoChess <span class="sub" style="color:var(--suave);font-weight:400">v7.0</span></h1>
   <div class="grupo">
     <button id="btMenu" class="principal" title="Menu: tutorial, guia, regras, unidades, nova partida">☰ Menu</button>
     <button id="btDesfazerJogada" disabled title="Desfazer a última jogada">↶ Desfazer</button>
@@ -352,14 +362,13 @@
     <h2 id="mnTitulo">NeoChess</h2>
     <p class="desc" style="margin:0">O que você quer fazer?</p>
     <div class="mnGrade">
-      <button data-mn="tutorial" class="principal">Tutorial</button><button data-mn="guia">Guia</button>
+      <button data-mn="tutorial">Tutorial</button><button data-mn="guia">Guia</button>
       <button data-mn="regras">Regras</button><button id="btUnidades" data-mn="unidades">Unidades e treino</button>
     </div>
     <div class="mnNova">
       <div class="linha"><label for="selModo">Modo</label><select id="selModo">
         <option value="ia1">Contra a IA (fácil)</option><option value="ia2">Contra a IA (difícil)</option><option value="2j">Dois jogadores, mesma tela</option></select></div>
       <div class="linha" id="lnLado"><label for="selLado" id="rotLado">Você joga com</label><select id="selLado"><option value="0">Azul (começa)</option><option value="1">Ocre (responde)</option></select></div>
-      <div class="linha" id="lnRitmo"><label for="selRitmo" id="rotRitmo">Ritmo</label><select id="selRitmo"><option value="1">Lento</option><option value="0.5">Normal</option></select></div>
       <button id="btNova" data-mn="nova" class="principal grande">Nova partida</button>
       <p class="desc" style="margin:6px 0 0">Joga com o último deck. Para mudar os heróis, use Editar deck.</p>
     </div>
@@ -379,6 +388,7 @@
     <h2 id="bvTitulo">NeoChess</h2>
     <p>Jogo tático de <b>1 contra 1, por turnos</b>, sem sorte: o dano é fixo e toda a informação está na tela. Você comanda 7 unidades diferentes num tabuleiro hexagonal e vence deixando o adversário sem unidades que se movem.</p>
     <p class="desc">Esta é uma versão de teste. Sua opinião ajuda a decidir o que o jogo vira: ao final de cada partida você pode dar uma nota, e o botão <b>Relatório</b> gera um resumo para me enviar.</p>
+    <p class="desc" id="bvVersao" style="margin:0 0 6px"></p>
     <p class="dicaTela" id="bvDicaTela">O jogo é feito para <b>tela cheia</b>: o tabuleiro fica maior e os botões ficam ao alcance do dedo. No celular, deixe o aparelho na horizontal.</p>
     <div class="acoes">
       <button id="btBvTela" class="principal verde">⛶ Entrar em tela cheia e começar</button>
@@ -469,6 +479,9 @@
   /* ------------------------------------------------------------------------
    * 1. GEOMETRIA (coordenadas axiais q,r)
    * --------------------------------------------------------------------- */
+  // v6.9 (D-87): identidade do motor. Muda só quando uma regra ou o comportamento do motor muda (não a cada versão da interface); o catálogo tem a sua (CATALOGO.versao).
+  // Estado, deck e relatório carregam as duas; dois PVP só começam se forem iguais (versaoInfo, mesmaVersao).
+  const VERSAO_MOTOR = 'm7.0';   // v7.0: mapa hex5t (arena sem 4 lados do anel externo); muda o mapa, não as regras
   const VERSAO_ESTADO = 4;           // v3: campos 'anel' e 'caidas' (contração do tabuleiro, D-18)
   const LIMITE_SEM_PROGRESSO = 30;   // D-05: meios-turnos sem dano nem morte
   const REPETICOES_EMPATE = 3;       // D-05: 3ª ocorrência da posição
@@ -495,10 +508,15 @@
    * --------------------------------------------------------------------- */
   // 'inicio' = slots do jogador 0 por código de unidade; o jogador 1 é o
   // espelho por rotação de 180° (-q,-r).
-  function criarMapa(id, raio, obstaculos, inicio) {
+  // v7.0: 'fora' = casas que não existem neste mapa (arena recortada). Para o motor valem como obstáculo permanente
+  // (bloqueiam passo, linha de tiro e contam como borda), mas não são desenhadas e não entram em 'obstaculos'.
+  function criarMapa(id, raio, obstaculos, inicio, fora) {
+    const obs = new Set(obstaculos.map(function (o) { return chave(o[0], o[1]); }));
+    (fora || []).forEach(function (o) { obs.add(chave(o[0], o[1])); });
     return {
       id: id, raio: raio, obstaculos: obstaculos,
-      obs: new Set(obstaculos.map(function (o) { return chave(o[0], o[1]); })),
+      fora: fora || [], foraSet: new Set((fora || []).map(function (o) { return chave(o[0], o[1]); })),
+      obs: obs,
       inicio: inicio || {}
     };
   }
@@ -529,6 +547,14 @@
     Object.keys(b.inicio).forEach(function (t) { ini[t] = f(b.inicio[t]); });
     registrarMapa(criarMapa('hex5d', b.raio, b.obstaculos.map(f), ini));
   })();
+  // v7.0: hex5d sem 4 lados do anel externo (|q| = 5 ou |r| = 5: 22 casas, 69 restam) e sem os 4 obstáculos do raio 4
+  // (2,-4), (4,-3), (-4,3), (-2,4). Ficam as duas arestas atrás das equipes (q+r = -5 e q+r = 5), com 4 casas cada.
+  (function () {
+    const b = MAPAS['hex5d'], fora = [], tira = { '2,-4': 1, '4,-3': 1, '-4,3': 1, '-2,4': 1 };
+    for (let q = -5; q <= 5; q++) for (let r = -5; r <= 5; r++)
+      if (Math.abs(q + r) <= 5 && (Math.abs(q) === 5 || Math.abs(r) === 5)) fora.push([q, r]);
+    registrarMapa(criarMapa('hex5t', b.raio, b.obstaculos.filter(function (o) { return !tira[chave(o[0], o[1])]; }), b.inicio, fora));
+  })();
   const EXERCITO_V4 = ['Se', 'Be', 'Ba', 'La', 'En', 'Re', 'Mi'];   // D-34: Mineiro no lugar da Atalaia
 
   // Mapa efetivo = mapa base com o raio reduzido pelas contrações (D-18).
@@ -545,7 +571,7 @@
     if (!m || m._base !== base) {
       const raio = base.raio - (estado.anel || 0);
       const obst = base.obstaculos.filter(function (o) { return anelDe(o[0], o[1]) <= raio; }).concat(caidas);
-      m = criarMapa(base.id, raio, obst, base.inicio);
+      m = criarMapa(base.id, raio, obst, base.inicio, base.fora);
       m._base = base;
       _efetivos[k] = m;
     }
@@ -740,7 +766,7 @@
     unidades.sort(porId);
     (function () { const v = {}; unidades.forEach(function (u) { const k = chave(u.q, u.r); if (v[k]) throw new Error('duas unidades na mesma casa inicial: ' + v[k] + ' e ' + u.id); v[k] = u.id; }); })();
     const estado = {
-      v: VERSAO_ESTADO, catalogo: CATALOGO.versao, mapa: mapaId,
+      v: VERSAO_ESTADO, motor: VERSAO_MOTOR, catalogo: CATALOGO.versao, mapa: mapaId,
       jogador: 0, meioTurno: 0, semProgresso: 0, anel: 0, caidas: [], marcas: [],
       unidades: unidades, repeticoes: {}, resultado: null
     };
@@ -757,21 +783,24 @@
   const TAM_DECK = 7;
   const FRENTE_DECK = ['Se', 'Mj', 'Ba', 'Mi', 'La'], TRAS_DECK = ['Be', 'Mg', 'En', 'Re'];   // papéis usados só pelo sorteio de decks sugeridos
   function zonaDeploy(mapaId) {
-    const rot = mapaId === 'hex5d', z = [];
-    if (mapaId !== 'hex5' && mapaId !== 'hex5d') throw new Error('mapa sem zona de posicionamento: ' + mapaId);
+    const rot = mapaId === 'hex5d' || mapaId === 'hex5t', z = [];
+    if (mapaId !== 'hex5' && !rot) throw new Error('mapa sem zona de posicionamento: ' + mapaId);
+    const foraSet = (MAPAS[mapaId] && MAPAS[mapaId].foraSet) || new Set();
     for (let r = -3; r >= -5; r--) {
       const qa = Math.max(-5, -5 - r), qb = Math.min(5, 5 - r), c = (qa + qb) / 2;
-      for (let q = qa; q <= qb; q++) z.push({ q: rot ? q + r : q, r: rot ? -q : r, fila: -3 - r, off: Math.abs(q - c) });   // hex5d = hex5 girado 60°: f(q,r) = (q+r, -q)
+      for (let q = qa; q <= qb; q++) if (!foraSet.has(chave(rot ? q + r : q, rot ? -q : r))) z.push({ q: rot ? q + r : q, r: rot ? -q : r, fila: -3 - r, off: Math.abs(q - c) });   // hex5d = hex5 girado 60°: f(q,r) = (q+r, -q)
     }
     return z;
   }
   function deckPadrao(mapaId) {
     const m = MAPAS[mapaId || 'hex5d'];
-    return { v: 1, catalogo: CATALOGO.versao, mapa: mapaId || 'hex5d', itens: EXERCITO_V4.map(function (t) { return [t, m.inicio[t][0], m.inicio[t][1]]; }) };
+    return { v: 1, motor: VERSAO_MOTOR, catalogo: CATALOGO.versao, mapa: mapaId || 'hex5d', itens: EXERCITO_V4.map(function (t) { return [t, m.inicio[t][0], m.inicio[t][1]]; }) };
   }
   function validarDeck(d) {
     const erros = [];
     if (!d || !Array.isArray(d.itens)) return { ok: false, erros: ['deck inválido'] };
+    if (d.catalogo !== undefined && d.catalogo !== CATALOGO.versao) return { ok: false, erros: ['deck de outro catálogo (' + d.catalogo + '; este é ' + CATALOGO.versao + ')'] };
+    if (d.motor !== undefined && d.motor !== VERSAO_MOTOR) return { ok: false, erros: ['deck de outro motor (' + d.motor + '; este é ' + VERSAO_MOTOR + ')'] };
     if (d.itens.length !== TAM_DECK) erros.push('o deck precisa de exatamente ' + TAM_DECK + ' heróis (tem ' + d.itens.length + ')');
     const zona = {}; try { zonaDeploy(d.mapa || 'hex5d').forEach(function (c) { zona[c.q + ',' + c.r] = true; }); } catch (x) { erros.push(x.message); }
     const tipos = {}, casas = {};
@@ -801,12 +830,12 @@
       const c = cand.length ? cand[0].c : zona.filter(function (x) { return !usadas[x.q + ',' + x.r]; })[0];
       usadas[c.q + ',' + c.r] = true; itens.push([t, c.q, c.r]);
     });
-    return { v: 1, catalogo: CATALOGO.versao, mapa: mapaId, itens: itens };
+    return { v: 1, motor: VERSAO_MOTOR, catalogo: CATALOGO.versao, mapa: mapaId, itens: itens };
   }
 
   function clonar(e) {
     const c = {
-      v: e.v, catalogo: e.catalogo, mapa: e.mapa, jogador: e.jogador,
+      v: e.v, motor: e.motor, catalogo: e.catalogo, mapa: e.mapa, jogador: e.jogador,
       meioTurno: e.meioTurno, semProgresso: e.semProgresso, anel: e.anel,
       caidas: (e.caidas || []).map(function (c) { return c.slice(); }),
       marcas: (e.marcas || []).map(function (m) { return Object.assign({}, m, { centro: m.centro.slice() }); }),
@@ -1562,11 +1591,16 @@
   /* ------------------------------------------------------------------------
    * 8. SERIALIZAÇÃO, REPLAY, PERFT
    * --------------------------------------------------------------------- */
+  // Versões que dois jogadores precisam ter iguais para jogar (aperto de mão do PVP, D-87).
+  function versaoInfo() { return { motor: VERSAO_MOTOR, catalogo: CATALOGO.versao, estado: VERSAO_ESTADO }; }
+  function mesmaVersao(o) { return !!o && o.motor === VERSAO_MOTOR && o.catalogo === CATALOGO.versao && o.estado === VERSAO_ESTADO; }
+
   function serializar(estado) { return JSON.stringify(estado); }
 
   function desserializar(texto) {
     const e = JSON.parse(texto);
     if (e.v !== VERSAO_ESTADO) throw new Error('versão de estado incompatível: ' + e.v);
+    if (e.motor !== undefined && e.motor !== VERSAO_MOTOR) throw new Error('motor incompatível: ' + e.motor + ' (este é ' + VERSAO_MOTOR + ')');   // sem 'motor' = estado salvo antes da v6.9
     if (e.catalogo !== CATALOGO.versao) throw new Error('catálogo incompatível: ' + e.catalogo);
     if (!MAPAS[e.mapa]) throw new Error('mapa desconhecido: ' + e.mapa);
     return e;
@@ -1591,6 +1625,7 @@
 
   return {
     // dados
+    VERSAO_MOTOR: VERSAO_MOTOR, versaoInfo: versaoInfo, mesmaVersao: mesmaVersao,
     DIRS: DIRS, CATALOGO: CATALOGO, MAPAS: MAPAS, EXERCITO_BASE: EXERCITO_BASE,
     // construção
     criarMapa: criarMapa, registrarMapa: registrarMapa, novoJogo: novoJogo,
@@ -1794,6 +1829,15 @@
   // 'botaoNome' (habilidade) e 'alvoNome' (quem ou onde tocar depois). 'texto' explica a regra; a interface acrescenta a instrução passo a passo.
   const LICOES = [
     {
+      id: 'menu', nome: 'Conhecendo o menu', un: [['0Se', 0, -3], ['1Ba', 0, 3]],
+      passos: [
+        { texto: 'Tudo fica no botão <b>Menu</b>, no topo (piscando agora). Lá estão: <b>Tutorial</b> (estas lições), <b>Guia</b> (resumo de como jogar) e <b>Regras</b> (as regras completas).', info: true, destacaUnid: true },
+        { texto: '<b>Unidades e treino</b> mostra a ficha de cada unidade do jogo (vida, movimento, ataque e habilidade). Cada uma tem um botão <b>Treinar</b>: abre um tabuleiro com a unidade contra um boneco parado, com vida e mana infinitas. <b>Você pode treinar e testar todas as unidades do jogo</b>, uma a uma, sem risco.', info: true, destacaUnid: true },
+        { texto: '<b>Nova partida</b> joga com o último deck contra a IA (fácil ou difícil) ou com dois jogadores na mesma tela. <b>Editar deck</b> escolhe quais unidades você leva e onde começam. <b>Relatório</b> resume a partida para você copiar e enviar como feedback. O volume e a tela cheia também ficam no Menu.', info: true }
+      ],
+      fim: 'Agora as lições de mecânica. Para conhecer cada unidade, use Unidades e treino quando quiser.'
+    },
+    {
       id: 'turno', nome: 'Seu turno', un: [['0Se', 0, -3], ['1Ba', 0, 3]],
       passos: [
         { texto: 'Você joga com as unidades <b>azuis</b> (as de baixo) e o adversário com as <b>ocres</b> (as de cima). Vence quem eliminar, ou deixar sem movimento, todas as unidades móveis do outro. A cada turno você age com <b>uma única unidade</b>; depois é a vez do adversário.', info: true },
@@ -1864,6 +1908,7 @@
 (function () {
   'use strict';
   const M = Motor, CAT = M.CATALOGO.unidades, DIRS = M.DIRS;
+  const MAPA_JOGO = 'hex5t';   // v7.0: arena recortada (D-93, proposta)
   const TAM = 30, SQ3 = Math.sqrt(3), RAIO_BASE = M.MAPAS['hex5'].raio;   // raio 5 (D-54: a cópia de arte voltou ao mapa original)
   // Arte (tabuleiro inclinado): o eixo vertical do chão é comprimido por K (câmera a ~37 graus). O motor não muda.
   const ARTE = true, K = 0.6, ESP = 8, ALT = 16;      // ESP: espessura da laje; ALT: altura do tronco da unidade (efeitos)
@@ -2077,8 +2122,29 @@
           mestre = ctx.createGain(); mestre.gain.value = ganho(); mestre.connect(comp); comp.connect(ctx.destination);
           P = primitivas(ctx, mestre);
         }
-        if (ctx.state === 'suspended') ctx.resume();
+        // iOS/Safari: (1) o ctx só sai de "suspended" dentro de um gesto (touchend/click); (2) Web Audio fica mudo com a chave de silêncio ligada,
+        // a menos que a sessão de áudio seja "playback" ou haja um <audio> tocando; (3) o estado pode voltar a "interrupted".
+        try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (x) {}
+        if (ctx.state !== 'running') {
+          ctx.resume();
+          try { const b0 = ctx.createBuffer(1, 1, 22050), s0 = ctx.createBufferSource(); s0.buffer = b0; s0.connect(ctx.destination); s0.start(0); } catch (x) {}
+        }
+        if (!elIOS) {
+          try {
+            elIOS = new Audio(); elIOS.loop = true; elIOS.setAttribute('playsinline', ''); elIOS.volume = 0.01;
+            elIOS.src = silencioWav(); const pr = elIOS.play(); if (pr && pr.catch) pr.catch(function () { elIOS = null; });
+          } catch (x) { elIOS = null; }
+        }
       } catch (x) { ctx = null; }
+    }
+    let elIOS = null;
+    function silencioWav() {   // 0,5 s de silêncio, WAV mono 8 kHz 8 bits, em data URI
+      const n = 4000, h = new Uint8Array(44 + n), v = new DataView(h.buffer), w = function (o, t) { for (let i = 0; i < t.length; i++) h[o + i] = t.charCodeAt(i); };
+      w(0, 'RIFF'); v.setUint32(4, 36 + n, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+      v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); w(36, 'data'); v.setUint32(40, n, true);
+      for (let i = 0; i < n; i++) h[44 + i] = 128;
+      let bin = ''; for (let i = 0; i < h.length; i++) bin += String.fromCharCode(h[i]);
+      return 'data:audio/wav;base64,' + btoa(bin);
     }
     function aplicar() { if (mestre) mestre.gain.value = ganho(); ui(); gravar(); }
     function ui() {
@@ -2104,7 +2170,8 @@
       agendar(primitivas(oc, g), oc, nome, 0.01, o || {});
       return oc.startRendering().then(function (b) { return Array.from(b.getChannelData(0)); });
     }
-    ['pointerdown', 'keydown', 'touchstart'].forEach(function (e) { document.addEventListener(e, destravar, true); });
+    ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'].forEach(function (e) { document.addEventListener(e, destravar, true); });
+    document.addEventListener('visibilitychange', function () { if (!document.hidden && ctx && ctx.state !== 'running') { try { ctx.resume(); } catch (x) {} } });
     return { tocar: tocar, tocarEm: tocarEm, destravar: destravar, alternarMudo: alternarMudo, volume: volume, demo: demo, ui: ui, ok: ok, renderizar: renderizar, nomes: Object.keys(SONS), registro: null,
       get cfg() { return cfg; } };
   })();
@@ -2121,8 +2188,8 @@
   // Sentido em que cada arte original foi desenhada (conferido no tabuleiro): Arqueiro e Lanceiro olham para a direita; as demais, para a esquerda.
   const ARTE_OLHA_DIREITA = { Be: true, La: true, Se: false, Ba: false, En: false, Re: false, Mi: false, At: false, Mj: true, Mg: false };
   function espelhada(dono, tipo) {
-    if (!jogo || jogo.mapa !== 'hex5d') return false;
-    const ini = M.MAPAS['hex5d'].inicio; let sx = 0, n = 0;
+    if (!jogo || (jogo.mapa !== 'hex5d' && jogo.mapa !== 'hex5t')) return false;
+    const ini = M.MAPAS[jogo.mapa].inicio; let sx = 0, n = 0;
     Object.keys(ini).forEach(function (t) { const c = ini[t]; sx += px(dono ? -c[0] : c[0], dono ? -c[1] : c[1])[0]; n++; });
     return (sx / n > 0) === ARTE_OLHA_DIREITA[tipo];
   }
@@ -2225,10 +2292,10 @@
     // v6.4: cada lado joga o deck montado antes da partida. Contra a IA, o humano usa o deck dele e a IA o deck sorteado ao clicar em Jogar (a revanche mantém os dois).
     faseDeck = false; document.body.classList.remove('deck');
     if (!deckAtual) deckAtual = deckInicial();
-    if (!deckIA) deckIA = M.deckAleatorio('hex5d', IA.criarRng((Math.random() * 1e9) | 0));
+    if (!deckIA) deckIA = M.deckAleatorio(MAPA_JOGO, IA.criarRng((Math.random() * 1e9) | 0));
     const dh = M.deckParaConfig(deckAtual), di = modo === '2j' ? dh : M.deckParaConfig(deckIA), Lh = modo === '2j' ? -1 : humano, slots = [{}, {}];
     exercitos = [0, 1].map(function (l) { const c = (l === Lh || Lh < 0) ? dh : di; slots[l] = c.slots; return c.tipos; });
-    jogo = M.novoJogo({ mapa: 'hex5d', exercitos: exercitos, slots: slots }); snapshots = []; confirmaTerm = false; acoes = []; log = []; ultimoEv = []; fimMostrado = false;
+    jogo = M.novoJogo({ mapa: MAPA_JOGO, exercitos: exercitos, slots: slots }); snapshots = []; confirmaTerm = false; acoes = []; log = []; ultimoEv = []; fimMostrado = false;
     sel = tipoAcao = passoInv = pendMov = insp = null;
     rng = IA.criarRng((Date.now() ^ (Math.random() * 1e9)) | 0);
     CTRL.remoto.reiniciar();
@@ -3066,14 +3133,20 @@
 
   // Vista: recorte rente ao tabuleiro de raio 4 (hexes de x -234 a 234; fileira do fundo logo abaixo da laje) e às cabeças das unidades
   // da fileira de trás. VB_TOPO é também o limite que o HUD respeita (o balão da unidade selecionada nunca sai da área).
-  const VB_TOPO = -215;
+  const VB_CHEIA = { x: -288, top: -215, w: 576, bot: 163 };   // o build troca estes valores pelos do raio 5 completo
+  const VB_COMPACTA = { x: -264, top: -176, w: 528, bot: 136 };   // v7.0: hex5t (69 casas): tabuleiro mais baixo e mais estreito, casas maiores na tela
+  let VB_TOPO = VB_CHEIA.top;
   function ajustarVista() {
-    const vb = '-288 ' + VB_TOPO + ' 576 ' + (163 - VB_TOPO);
-    el('tabuleiro').setAttribute('viewBox', vb); el('fundo').setAttribute('viewBox', vb);
+    let c = VB_CHEIA; try { if (jogo && jogo.mapa === MAPA_JOGO) c = VB_COMPACTA; } catch (x) {}
+    VB_TOPO = c.top;
+    const vb = c.x + ' ' + c.top + ' ' + c.w + ' ' + (c.bot - c.top);
+    if (el('tabuleiro').getAttribute('viewBox') !== vb) { el('tabuleiro').setAttribute('viewBox', vb); el('fundo').setAttribute('viewBox', vb); }
+    document.documentElement.style.setProperty('--asp', (c.w / (c.bot - c.top)).toFixed(3));
   }
   window.addEventListener('resize', ajustarVista); ajustarVista();
 
   function desenhar() {
+    ajustarVista();
     if (faseDeck) { desenharTabuleiro(); desenharPainelDeck(); return; }   // v6.4: montagem de deck
     if (modo === 'treino') desenharPainelTreino();
     desenharTabuleiro();
@@ -3153,7 +3226,7 @@
       }
     }
     const zonaDk = {};   // v6.4: casas onde o deck pode ser posicionado (no referencial do lado do humano)
-    if (faseDeck) M.zonaDeploy('hex5d').forEach(function (z) { zonaDk[ladoDeck() === 0 ? chave(z.q, z.r) : chave(-z.q, -z.r)] = z.fila; });
+    if (faseDeck) M.zonaDeploy(MAPA_JOGO).forEach(function (z) { zonaDk[ladoDeck() === 0 ? chave(z.q, z.r) : chave(-z.q, -z.r)] = z.fila; });
     const celulas = [];
     for (let q = -RAIO_BASE; q <= RAIO_BASE; q++) for (let r = -RAIO_BASE; r <= RAIO_BASE; r++)
       if (Math.abs(q + r) <= RAIO_BASE) celulas.push([q, r]);
@@ -3161,8 +3234,10 @@
     celulas.sort(function (a, b) { const pa = px(a[0], a[1]), pb = px(b[0], b[1]); return pa[1] - pb[1] || pa[0] - pb[0]; });
     const obsLista = [];
 
+    const foraMapa = M.MAPAS[jogo.mapa].foraSet;
     celulas.forEach(function (c) {
       const q = c[0], r = c[1], k = chave(q, r), p = px(q, r);
+      if (foraMapa && foraMapa.has(k)) return;   // v7.0: casa que não existe neste mapa (não desenha piso, laje nem obstáculo)
       let cls = 'hex';
       if (!M.dentro(mef, q, r) || mef.obs.has(k) && !M.MAPAS[jogo.mapa].obs.has(k)) cls += ' caida';
       else if (mef.obs.has(k)) cls += ' obs';
@@ -3220,20 +3295,20 @@
     // Indicadores (PV, mana e, na variante B, o balão com o símbolo): camada própria, desenhada por cima de todas as figuras
     function hudSvg(u, y0) {
       const c = COR_PECA[u.dono], max = CAT[u.tipo].pvMax, A = PECAS[chaveArte(u)] && figura(chaveArte(u)), cy = -TAM * 0.5 - 3, R = TAM * 0.5;
-      const balao = sel === u.id || insp === u.id || selIA === u.id, topo = VB_TOPO + 2 - y0;   // topo: menor y local visível
+      const balao = false, topo = VB_TOPO + 2 - y0;   // topo: menor y local visível
       let t = '';
       // PV: pílula escura na junção ficha/base (dentro da casa da própria unidade)
       const w = 5.2, pw = max * w + 5, py = -8;
-      t += '<rect x="' + (-pw / 2) + '" y="' + py + '" width="' + pw + '" height="8" rx="4" fill="#0b0d11" opacity=".92"/>';
-      for (let i = 0; i < max; i++) t += '<circle cx="' + (-((max - 1) * w) / 2 + i * w).toFixed(1) + '" cy="' + (py + 4) + '" r="1.9" fill="' + (i < u.pv ? '#e6e9ee' : '#3a4452') + '"/>';
+      t += '<rect x="' + (-pw / 2) + '" y="' + py + '" width="' + pw + '" height="8" rx="4" fill="#0b0d11"/>';
+      for (let i = 0; i < max; i++) t += '<circle cx="' + (-((max - 1) * w) / 2 + i * w).toFixed(1) + '" cy="' + (py + 4) + '" r="1.9" fill="' + (i < u.pv ? '#e6e9ee' : '#0b0d11') + '"/>';
       const cfgMana = u.tipo === 'Mg' ? M.CATALOGO.fogo : u.tipo === 'Mj' ? M.CATALOGO.barril : M.CATALOGO.mana;
       if (u.mana !== undefined && cfgMana) {
         const mm = cfgMana.max, mw = mm * 7 + 5, corMana = u.tipo === 'Mg' ? '#ff9a3c' : u.tipo === 'Mj' ? '#e0a040' : '#5fd3c8';
         let my = A ? A.y - 10 : cy - R - 11;   // com arte: logo acima da cabeça da figura
         if (A && balao) my -= 24;   // acima do balão
         my = Math.max(my, topo);
-        t += '<rect x="' + (-mw / 2) + '" y="' + my + '" width="' + mw + '" height="8" rx="4" fill="#0b0d11" opacity=".92"/>';
-        for (let i = 0; i < mm; i++) t += '<rect x="' + (-(mm * 7) / 2 + i * 7 + 1) + '" y="' + (my + 2) + '" width="5" height="4" rx="1" fill="' + (i < u.mana ? corMana : '#3a4452') + '"/>';
+        t += '<rect x="' + (-mw / 2) + '" y="' + my + '" width="' + mw + '" height="8" rx="4" fill="#0b0d11"/>';
+        for (let i = 0; i < mm; i++) t += '<rect x="' + (-(mm * 7) / 2 + i * 7 + 1) + '" y="' + (my + 2) + '" width="5" height="4" rx="1" fill="' + (i < u.mana ? corMana : '#0b0d11') + '"/>';
       }
       if (A && balao) {   // balão: ficha com o símbolo, presa à cabeça por uma pontinha
         const r = 10, by = Math.max(A.y - 15, topo + r + 10 + (u.mana !== undefined ? 8 : 0));   // na fileira de trás o balão desce para a cabeça
@@ -3285,7 +3360,7 @@
 
   // Obstáculos fixos do mapa base (para distinguir de casas caídas)
   const MAPA_BASE_OBS = {};
-  [M.MAPAS['hex5'], M.MAPAS['hex5d']].forEach(function (mp) { mp.obstaculos.forEach(function (o) { MAPA_BASE_OBS[chave(o[0], o[1])] = true; }); });
+  [M.MAPAS['hex5'], M.MAPAS['hex5d'], M.MAPAS['hex5t']].forEach(function (mp) { mp.obstaculos.forEach(function (o) { MAPA_BASE_OBS[chave(o[0], o[1])] = true; }); });
 
   let popChave = '', detAberto = false, popRolou = '';   // detAberto: o jogador pediu os detalhes (padrão: ocultos)
   // v6.2: o quadro de ações vive na barra lateral fixa. Aqui só se decide se aparece (sempre, exceto no tutorial sem botões) e, em tela
@@ -3409,7 +3484,7 @@
 
   function exportar() {   // JSON da partida (usado no relatório)
     el('expTexto').value = JSON.stringify({
-      motor: 'v6.8', catalogo: M.CATALOGO.versao, mapa: jogo.mapa, exercitos: exercitos, deck: deckAtual, deckIA: modo === '2j' ? null : deckIA, fogo: M.CATALOGO.fogo, barril: M.CATALOGO.barril, modo: modo, humano: humano,
+      versaoJogo: 'v7.0', motor: M.VERSAO_MOTOR, catalogo: M.CATALOGO.versao, mapa: jogo.mapa, exercitos: exercitos, deck: deckAtual, deckIA: modo === '2j' ? null : deckIA, fogo: M.CATALOGO.fogo, barril: M.CATALOGO.barril, modo: modo, humano: humano,
       regras: { moverEAgir: M.CATALOGO.moverEAgir.ativo ? M.CATALOGO.moverEAgir.bonus : false, escalaPV: M.CATALOGO.escalaPV, mana: M.CATALOGO.mana, danoBa: CAT.Ba.atq.dano, danoAt: CAT.At.atq.dano },
       acoes: acoes, resultado: jogo.resultado, meiosTurnos: jogo.meioTurno, sessao: stats
     });
@@ -3492,7 +3567,7 @@
     const h = stats.hist, cont = function (f) { return h.filter(f).length; };
     const media = function (k) { const v = h.map(function (x) { return x[k]; }).filter(Boolean); return v.length ? (v.reduce(function (a, b) { return a + b; }, 0) / v.length).toFixed(1) + ' (' + v.length + ')' : 'sem nota'; };
     const l = [];
-    l.push('RELATÓRIO NeoChess v6.8 · testador ' + stats.id);
+    l.push('RELATÓRIO NeoChess v7.0 (motor ' + M.VERSAO_MOTOR + ', catálogo ' + M.CATALOGO.versao + ') · testador ' + stats.id);
     l.push('Aparelho: ' + (/iPad|Tablet|Android(?!.*Mobile)/i.test(navigator.userAgent) ? 'tablet' : /Mobi|iPhone|Android/i.test(navigator.userAgent) ? 'celular' : 'computador') + ' · tela ' + screen.width + 'x' + screen.height + ' · ' + new Date().toISOString().slice(0, 16));
     l.push('Partidas: ' + stats.partidas + ' · Revanches pedidas: ' + stats.revanches + ' · Guia lido: ' + (stats.guia ? 'sim' : 'não'));
     l.push('Contra a IA: ' + cont(function (x) { return x.res === 'V'; }) + ' vitórias, ' + cont(function (x) { return x.res === 'D'; }) + ' derrotas, ' + cont(function (x) { return x.res === 'E'; }) + ' empates · mesma tela: ' + cont(function (x) { return /^J/.test(x.res); }));
@@ -3740,16 +3815,16 @@
   /* ---------------------------------------------------------- montagem de deck (v6.4, D-62 e D-78) */
   const DECK_CHAVE = 'neochess.deck6';
   function ladoDeck() { return modo === '2j' ? 0 : humano; }
-  function copiaDeck(d) { return { v: d.v, catalogo: d.catalogo, mapa: d.mapa, itens: d.itens.map(function (x) { return x.slice(); }) }; }
+  function copiaDeck(d) { return { v: d.v, motor: d.motor, catalogo: d.catalogo, mapa: d.mapa, itens: d.itens.map(function (x) { return x.slice(); }) }; }
   function deckInicial() {   // último deck salvo (se ainda válido) ou o Exército Base
     try { const d = JSON.parse(localStorage.getItem(DECK_CHAVE)); if (d && M.validarDeck(d).ok) return d; } catch (x) { /* sem armazenamento */ }
-    return M.deckPadrao('hex5d');
+    return M.deckPadrao(MAPA_JOGO);
   }
   function salvarDeck(d) { try { localStorage.setItem(DECK_CHAVE, JSON.stringify(d)); } catch (x) { /* sem armazenamento */ } }
-  function sortearSugeridos() { const r = IA.criarRng((Math.random() * 1e9) | 0); sugeridos = [0, 1, 2].map(function () { return M.deckAleatorio('hex5d', r); }); }
+  function sortearSugeridos() { const r = IA.criarRng((Math.random() * 1e9) | 0); sugeridos = [0, 1, 2].map(function () { return M.deckAleatorio(MAPA_JOGO, r); }); }
   function armarJogoDeck() {   // estado temporário só para desenhar o deck no tabuleiro (os dois lados com o mesmo deck; o do adversário não é desenhado)
     const c = M.deckParaConfig({ itens: deck.itens });
-    jogo = M.novoJogo({ mapa: 'hex5d', exercitos: [c.tipos, c.tipos], slots: [c.slots, c.slots] });
+    jogo = M.novoJogo({ mapa: MAPA_JOGO, exercitos: [c.tipos, c.tipos], slots: [c.slots, c.slots] });
     legais = []; sel = tipoAcao = passoInv = pendMov = insp = null; visMov = null;
   }
   function abrirDeck() {
@@ -3764,7 +3839,7 @@
   const deckTem = function (t) { return deck.itens.filter(function (x) { return x[0] === t; })[0]; };
   const deckEm = function (q, r) { return deck.itens.filter(function (x) { return x[1] === q && x[2] === r; })[0]; };
   function paraP0(q, r) { return ladoDeck() === 0 ? [q, r] : [-q, -r]; }   // casa da tela -> referencial do P0
-  function emZona(q, r) { return M.zonaDeploy('hex5d').some(function (z) { return z.q === q && z.r === r; }); }
+  function emZona(q, r) { return M.zonaDeploy(MAPA_JOGO).some(function (z) { return z.q === q && z.r === r; }); }
   let msgDeck = '';
   // Solta um herói numa casa (da tela). origem 'pal' = veio da paleta; 'tab' = é uma unidade já posicionada (move ou troca de lugar).
   function deckSoltar(tipo, de, qa, ra) {
@@ -3839,14 +3914,14 @@
     const a = b.dataset.acao; msgDeck = '';
     if (a === 'sug') { deck = copiaDeck(sugeridos[+b.dataset.i]); deckSel = null; }
     else if (a === 'sortear') sortearSugeridos();
-    else if (a === 'padrao') { deck = M.deckPadrao('hex5d'); deckSel = null; }
+    else if (a === 'padrao') { deck = M.deckPadrao(MAPA_JOGO); deckSel = null; }
     else if (a === 'limpar') { deck.itens = []; deckSel = null; }
     else if (a === 'treinar' && deckSel) { iniciarTreino(deckSel.tipo); return; }
     else if (a === 'remover' && deckSel) { deckRemover(deckSel.tipo); deckSel = null; }
     else if (a === 'jogar') {
       const v = M.validarDeck(deck); if (!v.ok) { msgDeck = v.erros[0]; desenhar(); return; }
       deckAtual = copiaDeck(deck); salvarDeck(deckAtual);
-      deckIA = M.deckAleatorio('hex5d', IA.criarRng((Math.random() * 1e9) | 0));   // a IA joga com um deck novo a cada "Jogar"
+      deckIA = M.deckAleatorio(MAPA_JOGO, IA.criarRng((Math.random() * 1e9) | 0));   // a IA joga com um deck novo a cada "Jogar"
       novaPartida(); return;
     }
     armarJogoDeck(); desenhar();
@@ -3865,12 +3940,12 @@
     if (LAB) { if (alvo) labPonto(+alvo.dataset.q, +alvo.dataset.r); return; }
     if (alvo) clicar(+alvo.dataset.q, +alvo.dataset.r);
   });
-  function mostrarCamposModo() { const ia = el('selModo').value !== '2j'; el('lnLado').style.display = ia ? '' : 'none'; el('lnRitmo').style.display = ia ? '' : 'none'; }
+  function mostrarCamposModo() { const ia = el('selModo').value !== '2j'; el('lnLado').style.display = ia ? '' : 'none'; }
   function aplicarSelects() { modo = el('selModo').value; humano = +el('selLado').value; mostrarCamposModo(); }
   function aoMudarModo() { aplicarSelects(); if (LAB || modo === 'tut') novaPartida(); else abrirDeck(); }   // usado ao sair do tutorial e no boot: leva à montagem do deck
   el('selModo').onchange = mostrarCamposModo;   // v6.6: as escolhas do menu só valem quando a partida começa
-  function aoMudarRitmo() { ritmo = /[?&]ritmo=0/.test(location.search) ? 0 : +el('selRitmo').value; }
-  el('selRitmo').onchange = aoMudarRitmo;
+  // v7.0: ritmo único (lento). Ganchos de teste: ?ritmo=0 (sem espera) e ?ritmo=0.5 (rápido); sem eles vale sempre 1.
+  function aoMudarRitmo() { ritmo = /[?&]ritmo=0(&|$)/.test(location.search) ? 0 : (/[?&]ritmo=0\.5/.test(location.search) ? 0.5 : 1); }
   aoMudarRitmo();
   // Gancho só para testes automatizados (?teste): permite posicionar o estado e ler o resultado sem jogar 5 turnos.
   if (/[?&]teste/.test(location.search)) window.__nc = { estado: function () { return jogo; }, pôr: function (e) { faseDeck = false; document.body.classList.remove('deck'); jogo = e; sel = tipoAcao = passoInv = pendMov = insp = null; atualizar(); }, M: M };
@@ -3900,6 +3975,7 @@
     if (!ok) { el('btBvTela').hidden = true; el('btBvSem').textContent = 'Começar'; el('bvDicaTela').innerHTML = 'Este navegador não oferece tela cheia' + (/iPhone|iPad|iPod/.test(navigator.userAgent) ? '. No iPhone: toque em <b>Compartilhar</b>, <b>Adicionar à Tela de Início</b> e abra pelo ícone para jogar em tela cheia.' : '.') + ' Deixe o aparelho na horizontal para um tabuleiro maior.'; }
     return { ok: ok, alternar: alternar, ativa: ativa };
   })();
+  el('bvVersao').textContent = 'Versão v7.0 · motor ' + M.VERSAO_MOTOR + ' · catálogo ' + M.CATALOGO.versao + ' (informe estes dados se algo der errado).';
   el('btTelaCheia').onclick = TELA.alternar;
   el('btSom').onclick = SOM.alternarMudo;
   el('selVol').oninput = function () { SOM.volume(+el('selVol').value / 100); };
@@ -3948,7 +4024,7 @@
     aplicarSelects(); zerarNotas(); retorno = null; fecharJanelas();
     if (LAB || modo === 'tut') { novaPartida(); return; }
     if (!deckAtual) deckAtual = deckInicial();
-    deckIA = M.deckAleatorio('hex5d', IA.criarRng((Math.random() * 1e9) | 0));
+    deckIA = M.deckAleatorio(MAPA_JOGO, IA.criarRng((Math.random() * 1e9) | 0));
     novaPartida();
   }
   document.addEventListener('click', function (ev) {
